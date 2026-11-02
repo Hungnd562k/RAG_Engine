@@ -8,7 +8,7 @@ Design docs (architecture, milestones, ADRs, local setup) live in [`Docs/`](Docs
 ```bash
 docker compose up -d
 docker compose exec ollama ollama pull bge-m3
-docker compose exec ollama ollama pull qwen2.5:7b-instruct
+docker compose exec ollama ollama pull qwen2.5:3b-instruct
 uv sync && uv run rag health
 uv run rag ingest samples/
 uv run rag ask "Your question here"

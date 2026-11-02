@@ -25,3 +25,6 @@ Bước generation cần LLM chạy local (offline, không phí), trả lời t�
 - Engine hoàn toàn offline cho MVP.
 - Model mặc định có thể thay đổi khi có model mới tốt hơn trên Ollama — chỉ cần đổi config, không cần ADR mới trừ khi đổi provider.
 - Thêm provider cloud về sau = thêm một adapter, không đụng orchestrator.
+
+## Addendum 2026-11-02 — đổi model mặc định (thay đổi cấu hình, trong phạm vi ADR này)
+Máy dev: RTX 3050 Laptop **4 GB VRAM**, Docker chưa có NVIDIA runtime. `qwen2.5:7b-instruct` (~4.7 GB) không vừa VRAM. Mặc định đổi thành **`qwen2.5:3b-instruct`** (~1.9 GB, vừa VRAM cùng `bge-m3`). 7B vẫn dùng được qua `RAG_LLM_MODEL`. Chi tiết: [07-risks-and-open-questions.md — Q5](../07-risks-and-open-questions.md#q5--gpu--model-mặc-định).

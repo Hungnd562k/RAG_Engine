@@ -46,15 +46,16 @@ CREATE TABLE IF NOT EXISTS engine_meta (
 ## 2. Truy vấn tìm kiếm
 
 ```sql
-SET LOCAL hnsw.ef_search = 40;   -- tăng để recall cao hơn, đổi lại chậm hơn
+-- đặt một lần cho mỗi connection (RAG_HNSW_EF_SEARCH); tăng để recall cao hơn, đổi lại chậm hơn
+SELECT set_config('hnsw.ef_search', '40', false);
 
 SELECT c.id, d.source, c.content, c.heading_path,
-       1 - (c.embedding <=> %(q)s::vector) AS score
+       1 - (c.embedding <=> %(q)s) AS score
 FROM chunks c
 JOIN documents d ON d.id = c.document_id
-WHERE (%(source_prefix)s IS NULL OR d.source LIKE %(source_prefix)s || '%%')
-ORDER BY c.embedding <=> %(q)s::vector
-LIMIT %(top_k)s;
+WHERE %(prefix)s::text IS NULL OR starts_with(d.source, %(prefix)s::text)
+ORDER BY c.embedding <=> %(q)s
+LIMIT %(k)s;
 ```
 - `<=>` là cosine distance; `score = 1 - distance` (cosine similarity).
 - Lọc `min_score` ở tầng ứng dụng sau khi lấy top-k (giữ index được dùng).

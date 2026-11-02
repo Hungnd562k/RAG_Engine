@@ -10,7 +10,7 @@ CLI và API là hai lớp mỏng gọi cùng một engine (`build_engine(setting
 | `rag ingest <path> [--prune] [--dry-run]` | Nạp file/thư mục TXT/MD | M1 |
 | `rag stats` | Số documents, chunks, model, dim | M1 |
 | `rag reset [--yes]` | Xóa toàn bộ dữ liệu (hỏi xác nhận) | M1 |
-| `rag search "<q>" [--top-k N] [--source PREFIX] [--json]` | Tìm kiếm ngữ nghĩa | M2 |
+| `rag search "<q>" [--top-k N] [--source PREFIX] [--min-score X] [--json]` | Tìm kiếm ngữ nghĩa | M2 |
 | `rag ask "<q>" [--top-k N] [--show-context] [--json]` | Hỏi đáp có trích dẫn | M3 |
 | `rag serve [--host] [--port]` | Chạy FastAPI | M4 |
 | `rag eval <golden.yaml> [--top-k N] [--out FILE]` | Đánh giá retrieval | M5 |
@@ -31,7 +31,7 @@ Base URL: `http://localhost:8000` · Swagger UI: `/docs` · OpenAPI: `/openapi.j
 
 ### `GET /health`
 ```json
-{ "status": "ok", "db": "ok", "ollama": "ok", "embed_model": "bge-m3", "llm_model": "qwen2.5:7b-instruct" }
+{ "status": "ok", "db": "ok", "ollama": "ok", "embed_model": "bge-m3", "llm_model": "qwen2.5:3b-instruct" }
 ```
 
 ### `GET /stats`

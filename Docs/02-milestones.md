@@ -4,9 +4,9 @@ Mỗi milestone nhỏ, chạy được, có **Definition of Done (DoD)** kiểm 
 
 | Milestone | Mục tiêu | Trạng thái |
 |-----------|----------|-----------|
-| M0 | Skeleton & Infra | ⬜ Todo |
-| M1 | Ingestion vào pgvector | ⬜ Todo |
-| M2 | Retrieval (`rag search`) | ⬜ Todo |
+| M0 | Skeleton & Infra | ✅ Done (2026-11-02) |
+| M1 | Ingestion vào pgvector | ✅ Done (2026-11-02) |
+| M2 | Retrieval (`rag search`) | ✅ Done (2026-11-02) |
 | M3 | Generation có trích dẫn (`rag ask`) | ⬜ Todo |
 | M4 | REST API | ⬜ Todo |
 | M5 | Evaluation & Tests | ⬜ Todo |
@@ -19,19 +19,21 @@ Mỗi milestone nhỏ, chạy được, có **Definition of Done (DoD)** kiểm 
 
 **Scope**
 - `docker-compose.yml`: `pgvector/pgvector:pg16`, `ollama/ollama` (volume lưu model, GPU optional).
-- Pull model: `bge-m3`, `qwen2.5:7b-instruct`.
+- Pull model: `bge-m3` (M1), `qwen2.5:3b-instruct` (M3).
 - `pyproject.toml` (uv, Python 3.12), cấu trúc `src/rag_engine/`, `ruff`, `pytest`.
 - `config.py` (pydantic-settings), `.env.example`, logging.
 - Lệnh `rag health`: kiểm tra kết nối DB, extension `vector`, Ollama reachable, 2 model đã có.
 
-**DoD**
+**DoD** — ✅ kết quả thực tế:
 ```bash
 docker compose up -d
 uv run rag health
-# DB          OK  (pgvector 0.8.x)
-# Ollama      OK  (http://localhost:11434)
-# bge-m3      OK  (dim=1024)
-# qwen2.5:7b  OK
+#  Postgres                 OK    localhost:5432/rag
+#  pgvector                 OK    v0.8.7
+#  Schema/meta              OK    bge-m3, dim=1024
+#  Ollama                   OK    http://localhost:11434
+#  Embed bge-m3             OK    dim=1024
+#  LLM qwen2.5:3b-instruct  WARN  chưa pull (cần từ M3)
 ```
 
 ---
@@ -45,17 +47,17 @@ uv run rag health
 - Embedder Ollama (batch, retry đơn giản, kiểm tra dim).
 - `schema.sql` + `VectorStore.replace_document()` trong 1 transaction.
 - Ingestion pipeline idempotent; lệnh `rag ingest <path>`, `rag stats`, `rag reset`.
-- Thư mục `samples/` với 10–20 file MD/TXT (tiếng Việt + tiếng Anh) có nội dung tra cứu được.
+- Thư mục `samples/` với 7 file MD/TXT (5 tiếng Việt + 2 tiếng Anh) có nội dung tra cứu được.
 
-**DoD**
+**DoD** — ✅ kết quả thực tế (CPU):
 ```bash
 uv run rag ingest samples/
-# added=15 updated=0 skipped=0 chunks=120 elapsed=25.3s
-uv run rag stats            # documents=15 chunks=120 dim=1024
+# added=7 updated=0 skipped=0 deleted=0 chunks=33 elapsed=6.9s
+uv run rag stats
+# documents=7 chunks=33 embed_model=bge-m3 embed_dim=1024 pgvector=0.8.7
 uv run rag ingest samples/
-# added=0 updated=0 skipped=15        ← idempotent
-echo "thêm dòng" >> samples/x.md && uv run rag ingest samples/
-# updated=1                           ← thay thế chunks cũ
+# added=0 updated=0 skipped=7 deleted=0 chunks=0 elapsed=0.0s   ← idempotent
+# (file tạm samples/zz-tmp.md) thêm → added=1; sửa → updated=1; xóa + --prune → deleted=1
 ```
 Kiểm tra thủ công bằng SQL: `SELECT source, count(*) FROM chunks JOIN documents ... GROUP BY source;`
 
@@ -70,13 +72,19 @@ Kiểm tra thủ công bằng SQL: `SELECT source, count(*) FROM chunks JOIN doc
 - `rag search "<query>" [--top-k 5] [--source samples/x]` in bảng: rank, score, source › heading, preview 200 ký tự.
 - Tối thiểu 5 câu hỏi mẫu viết sẵn trong `eval/golden.yaml` (dùng lại ở M5).
 
-**DoD**
+**DoD** — ✅ kết quả thực tế:
 ```bash
-uv run rag search "chính sách nghỉ phép năm"
-# #1 0.78  samples/hr-policy.md › Nghỉ phép › Nghỉ phép năm   "Nhân viên chính thức được..."
+uv run rag search "chính sách nghỉ phép năm" -k 3
+# 1 0.702 samples/hr-policy.md › … › Nghỉ phép › Nghỉ phép năm   "Nhân viên chính thức được hưởng 12 ngày…"
+# 2 0.570 samples/hr-policy.md › … › Nghỉ phép › Nghỉ ốm
+# 3 0.538 samples/hr-policy.md › … › Nghỉ phép › Nghỉ thai sản
+# timings: embed=41ms search=2ms total=43ms
+uv run rag search "Giá bitcoin hôm nay là bao nhiêu?"
+# Không có chunk nào đạt ngưỡng min_score.
 ```
-- Cả 5 câu hỏi mẫu có chunk đúng nằm trong top-3 (kiểm tra bằng mắt).
-- Truy vấn tiếng Việt tìm được tài liệu tiếng Anh tương ứng (cross-lingual của BGE-M3).
+- 6/6 câu golden có nguồn đúng ở **rank 1** (tự động hóa trong `tests/integration/test_live_stack.py`, kiểm tra top-3).
+- Cross-lingual: "Làm việc từ nước ngoài được tối đa bao nhiêu ngày?" → `remote-work-policy.md › Working abroad` (0.746).
+- Ngưỡng `min_score` hiệu chỉnh 0.35 → 0.50 dựa trên đo đạc ([Q6](07-risks-and-open-questions.md#q6--ngưỡng-min_score)).
 
 ---
 
