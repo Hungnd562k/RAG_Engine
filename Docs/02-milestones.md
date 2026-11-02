@@ -8,7 +8,7 @@ Mỗi milestone nhỏ, chạy được, có **Definition of Done (DoD)** kiểm 
 | M1 | Ingestion vào pgvector | ✅ Done (2026-11-02) |
 | M2 | Retrieval (`rag search`) | ✅ Done (2026-11-02) |
 | M3 | Generation có trích dẫn (`rag ask`) | ✅ Done (2026-11-02) |
-| M4 | REST API | ⬜ Todo |
+| M4 | REST API | ✅ Done (2026-11-02) |
 | M5 | Evaluation & Tests | ⬜ Todo |
 | M6+ | Mở rộng | 💤 Backlog |
 
@@ -128,15 +128,24 @@ uv run rag ask "Giá bitcoin hôm nay?"
 - `GET /health`, `POST /ingest`, `POST /search`, `POST /ask`, `GET /stats` — schema theo [04-interfaces-cli-api.md](04-interfaces-cli-api.md).
 - Engine khởi tạo 1 lần (lifespan), dùng chung connection pool.
 
-**DoD**
+**DoD** — ✅ kết quả thực tế:
 ```bash
-uv run rag serve &
-curl -s localhost:8000/health
+uv run rag serve                                   # http://127.0.0.1:8000/docs
+curl -s localhost:8000/health                      # 200, status=ok, 6/6 checks OK
 curl -s -X POST localhost:8000/ask -H 'content-type: application/json' \
-     -d '{"question":"Nhân viên được nghỉ phép bao nhiêu ngày?"}' | jq
+     -d '{"question":"Mật khẩu phải dài tối thiểu bao nhiêu ký tự?","top_k":3}'
+# "Mật khẩu tài khoản công ty phải dài tối thiểu 12 ký tự [1]."  cited=[1]
+# timings: embed=61 search=5 generate=1984 total=2050 (ms)
 ```
-- Mở `http://localhost:8000/docs` thử được mọi endpoint.
-- Kết quả `/search` trùng với `rag search` cho cùng query.
+- `/docs` (Swagger UI) trả 200, thử được mọi endpoint.
+- `/search` và `rag search --json` cho cùng query: **cùng schema, cùng chunk_id/source/score** (kiểm tra tự động trong `tests/unit/test_api.py` và `tests/integration/test_live_stack.py::test_api_against_live_engine`).
+- 40 request `/search` từ 16 luồng song song: 100% HTTP 200 trong 2.2 s, kết quả ổn định.
+- Lỗi: path không tồn tại → 400, query rỗng → 422, câu ngoài phạm vi → `answered=false`.
+
+**Thay đổi kỹ thuật kèm theo**
+- `PgVectorStore` chuyển từ 1 connection sang **connection pool** (`psycopg_pool`, 1–4 connections): mỗi thao tác mượn connection riêng, transaction của ingest không lẫn với search song song.
+- `src/rag_engine/schemas.py`: Pydantic models dùng chung cho API và CLI `--json`.
+- `/ingest` có khóa: chỉ 1 ingest chạy cùng lúc (request thứ hai nhận 409).
 
 ---
 

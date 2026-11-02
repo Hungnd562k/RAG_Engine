@@ -4,7 +4,7 @@ A reusable, modular Retrieval-Augmented Generation (RAG) engine providing docume
 ## Documentation
 Design docs (architecture, milestones, ADRs, local setup) live in [`Docs/`](Docs/README.md).
 
-## Quick start (target after M3)
+## Quick start
 ```bash
 docker compose up -d
 docker compose exec ollama ollama pull bge-m3
@@ -12,4 +12,5 @@ docker compose exec ollama ollama pull qwen2.5:3b-instruct
 uv sync && uv run rag health
 uv run rag ingest samples/
 uv run rag ask "Your question here"
+uv run rag serve        # REST API + Swagger UI at http://127.0.0.1:8000/docs
 ```

@@ -46,7 +46,10 @@ uv run rag stats
 uv run rag search "chính sách nghỉ phép năm"
 uv run rag ask "Nhân viên được nghỉ phép bao nhiêu ngày mỗi năm?"
 
-# 6. Tests
+# 6. REST API (M4) — Swagger UI: http://127.0.0.1:8000/docs
+uv run rag serve
+
+# 7. Tests
 uv run pytest -m "not integration"      # không cần infra
 uv run pytest -m integration            # cần bước 1–2; dùng DB riêng rag_test
 ```
@@ -118,4 +121,6 @@ Danh sách đầy đủ biến cấu hình: [01-architecture.md §7](01-architec
 | Lỗi build wheel khi `uv sync` | Đang dùng Python 3.14 | Kiểm tra `.python-version` = 3.12 |
 | `rag ask` embed chậm vài giây mỗi câu | Embed và LLM tranh VRAM | `RAG_EMBED_NUM_GPU=0` (xem §3) |
 | Câu trả lời thiếu `[n]` / lạc đề | Prompt vượt `num_ctx` bị cắt, hoặc model quá nhỏ | Giảm `RAG_CONTEXT_MAX_CHARS`, xem `--show-context`; thử model lớn hơn |
+| `rag serve` báo `address already in use` | Port 8000 đang bị chiếm | `uv run rag serve --port 8001` |
+| API trả 503 `Engine chưa sẵn sàng` | Server start trước khi compose lên | Bật compose; request tiếp theo engine tự khởi tạo lại |
 | Reset sạch hoàn toàn | — | `docker compose down -v` (xóa cả models!) |

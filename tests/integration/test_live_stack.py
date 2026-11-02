@@ -82,3 +82,34 @@ def test_ask_golden_answers_and_citations(engine, monkeypatch):
             failures.append((item["id"], f"missing={missing} cited={ans.cited} "
                                          f"invalid={ans.invalid_citations}", ans.text))
     assert failures == [], "\n".join(map(str, failures))
+
+
+def test_api_against_live_engine(engine, monkeypatch):
+    """M4 DoD: /search trùng với engine (cùng schema với `rag search --json`), /ask có trích dẫn."""
+    from fastapi.testclient import TestClient
+
+    from rag_engine.api.main import create_app
+    from rag_engine.schemas import SearchResponse
+
+    class NoClose:  # engine của fixture dùng chung cho cả module, lifespan không được đóng nó
+        def __init__(self, e):
+            self._e = e
+
+        def __getattr__(self, name):
+            return getattr(self._e, name)
+
+        def close(self):
+            pass
+
+    monkeypatch.chdir(ROOT)
+    app = create_app(engine.settings, engine_factory=lambda s: NoClose(engine))
+    with TestClient(app) as c:
+        assert c.post("/ingest", json={"path": "samples"}).status_code == 200
+        api = c.post("/search", json={"query": "chính sách nghỉ phép năm", "top_k": 3}).json()
+        direct = SearchResponse.of(engine.retriever.retrieve("chính sách nghỉ phép năm", 3)).model_dump()
+        key = lambda d: [(r["chunk_id"], r["source"]) for r in d["results"]]  # noqa: E731
+        assert key(api) == key(direct)
+
+        ans = c.post("/ask", json={"question": "Mật khẩu phải dài tối thiểu bao nhiêu ký tự?"}).json()
+        assert ans["answered"] and "12" in ans["answer"] and ans["cited"]
+        assert c.post("/ask", json={"question": "Giá bitcoin hôm nay?"}).json()["answered"] is False

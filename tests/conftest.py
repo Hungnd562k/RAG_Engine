@@ -60,6 +60,9 @@ class InMemoryStore:
     def reset(self) -> None:
         self.docs.clear()
 
+    def close(self) -> None:
+        pass
+
 
 @pytest.fixture
 def fake_embedder() -> FakeEmbedder:

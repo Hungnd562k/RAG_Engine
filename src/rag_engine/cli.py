@@ -1,6 +1,4 @@
-import json
 import logging
-from dataclasses import asdict
 from pathlib import Path
 from typing import Annotated
 
@@ -14,6 +12,7 @@ from rag_engine.embedding.ollama import EmbeddingError
 from rag_engine.engine import Engine, build_engine, build_store, health_checks
 from rag_engine.generation.prompt import format_source
 from rag_engine.llm.ollama import LLMError
+from rag_engine.schemas import AskResponse, SearchResponse
 from rag_engine.store.pgvector import EmbeddingConfigMismatch
 
 app = typer.Typer(help="RAG engine CLI (xem Docs/04-interfaces-cli-api.md)", no_args_is_help=True)
@@ -121,8 +120,7 @@ def search(
         engine.close()
 
     if as_json:
-        print(json.dumps({"results": [asdict(r) for r in res.results],
-                          "timings_ms": res.timings_ms}, ensure_ascii=False, indent=2))
+        print(SearchResponse.of(res).model_dump_json(indent=2))
         return
     if not res.results:
         console.print("[yellow]Không có chunk nào đạt ngưỡng min_score.[/]")
@@ -163,14 +161,7 @@ def ask(
         engine.close()
 
     if as_json:
-        print(json.dumps({
-            "answer": ans.text,
-            "answered": ans.answered,
-            "sources": [{"ref": i, **asdict(s)} for i, s in enumerate(ans.sources, 1)],
-            "cited": ans.cited,
-            "invalid_citations": ans.invalid_citations,
-            "timings_ms": ans.timings_ms,
-        }, ensure_ascii=False, indent=2))
+        print(AskResponse.of(ans).model_dump_json(indent=2))
         return
 
     console.print(ans.text if ans.answered else f"[yellow]{ans.text}[/]")
@@ -186,6 +177,21 @@ def ask(
     elif ans.answered and not ans.cited:
         console.print("[yellow]⚠ Câu trả lời không có trích dẫn nào.[/]")
     console.print(f"[dim]timings: {_fmt_ms(ans.timings_ms)}[/]")
+
+
+@app.command()
+def serve(
+    host: Annotated[
+        str, typer.Option(help="Mặc định chỉ localhost: /ingest đọc được mọi đường dẫn trên máy")
+    ] = "127.0.0.1",
+    port: Annotated[int, typer.Option()] = 8000,
+    reload: Annotated[bool, typer.Option(help="Tự reload khi sửa code (dev)")] = False,
+) -> None:
+    """Chạy REST API (FastAPI). Swagger UI tại http://HOST:PORT/docs"""
+    import uvicorn
+
+    console.print(f"Swagger UI: [link]http://{host}:{port}/docs[/link]")
+    uvicorn.run("rag_engine.api.main:create_app", factory=True, host=host, port=port, reload=reload)
 
 
 if __name__ == "__main__":

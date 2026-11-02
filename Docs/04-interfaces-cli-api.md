@@ -12,7 +12,7 @@ CLI và API là hai lớp mỏng gọi cùng một engine (`build_engine(setting
 | `rag reset [--yes]` | Xóa toàn bộ dữ liệu (hỏi xác nhận) | M1 |
 | `rag search "<q>" [--top-k N] [--source PREFIX] [--min-score X] [--json]` | Tìm kiếm ngữ nghĩa | M2 |
 | `rag ask "<q>" [--top-k N] [--source PREFIX] [--min-score X] [--show-context] [--json]` | Hỏi đáp có trích dẫn | M3 |
-| `rag serve [--host] [--port]` | Chạy FastAPI | M4 |
+| `rag serve [--host 127.0.0.1] [--port 8000] [--reload]` | Chạy FastAPI | M4 |
 | `rag eval <golden.yaml> [--top-k N] [--out FILE]` | Đánh giá retrieval | M5 |
 
 Quy ước: `--json` in kết quả cùng schema với API để dễ so sánh/scripting. Exit code ≠ 0 khi lỗi hạ tầng.
@@ -27,60 +27,73 @@ timings: embed=41ms search=6ms
 
 ## 2. REST API (FastAPI)
 
-Base URL: `http://localhost:8000` · Swagger UI: `/docs` · OpenAPI: `/openapi.json`
+Chạy: `uv run rag serve [--host 127.0.0.1] [--port 8000] [--reload]` · Base URL: `http://localhost:8000` · Swagger UI: `/docs` · OpenAPI: `/openapi.json`
+
+Code: `src/rag_engine/api/main.py` (`create_app()`), schema dùng chung với CLI `--json`: `src/rag_engine/schemas.py`.
+
+- Engine khởi tạo **một lần** khi server start (lifespan), dùng connection pool Postgres (an toàn khi nhiều request song song). Nếu hạ tầng chưa lên lúc start, server vẫn chạy; `/health` báo lỗi và các endpoint khác tự thử khởi tạo lại.
+- Mặc định chỉ nghe `127.0.0.1`: `/ingest` nhận đường dẫn bất kỳ trên máy chạy server, **không có auth** — không mở ra mạng ngoài (auth để M6+).
 
 ### `GET /health`
+HTTP 200 nếu mọi thành phần bắt buộc OK (kể cả khi thiếu LLM → `degraded`), 503 nếu không.
 ```json
-{ "status": "ok", "db": "ok", "ollama": "ok", "embed_model": "bge-m3", "llm_model": "qwen2.5:3b-instruct" }
+{
+  "status": "ok",                       // ok | degraded | error
+  "embed_model": "bge-m3",
+  "llm_model": "qwen2.5:3b-instruct",
+  "checks": [ { "name": "Postgres", "ok": true, "required": true, "detail": "localhost:5432/rag" }, ... ]
+}
 ```
 
 ### `GET /stats`
 ```json
-{ "documents": 15, "chunks": 120, "embed_model": "bge-m3", "embed_dim": 1024 }
+{ "documents": 7, "chunks": 33, "embed_model": "bge-m3", "embed_dim": 1024, "pgvector": "0.8.7" }
 ```
 
 ### `POST /ingest`
-MVP nhận đường dẫn trên máy chạy server (local-only).
+Đường dẫn tính trên máy chạy server, tương đối so với thư mục server được khởi động. Chỉ một ingest chạy tại một thời điểm.
 ```json
 // request
-{ "path": "samples/", "prune": false }
+{ "path": "samples", "prune": false, "dry_run": false }
 // response
-{ "added": 15, "updated": 0, "skipped": 0, "deleted": 0, "chunks": 120, "elapsed_ms": 25300 }
+{ "added": 7, "updated": 0, "skipped": 0, "deleted": 0, "chunks": 33, "elapsed_ms": 6900.1, "dry_run": false,
+  "details": [ { "source": "samples/hr-policy.md", "action": "added", "chunks": 6 }, ... ] }
 ```
 
-### `POST /search`
+### `POST /search`  — cùng schema với `rag search --json`
 ```json
-// request
-{ "query": "chính sách nghỉ phép", "top_k": 5, "source_prefix": null }
+// request (chỉ query là bắt buộc; top_k mặc định RAG_TOP_K, min_score mặc định RAG_MIN_SCORE)
+{ "query": "chính sách nghỉ phép", "top_k": 5, "source_prefix": null, "min_score": null }
 // response
 {
   "results": [
-    { "chunk_id": 42, "source": "samples/hr-policy.md", "heading_path": ["Nghỉ phép", "Năm"],
-      "score": 0.781, "text": "Nhân viên chính thức được 12 ngày..." }
+    { "chunk_id": 6, "source": "samples/hr-policy.md", "heading_path": ["...", "Nghỉ phép", "Nghỉ phép năm"],
+      "score": 0.7018, "text": "## Nghỉ phép ..." }
   ],
-  "timings_ms": { "embed": 41, "search": 6, "total": 48 }
+  "timings_ms": { "embed": 41.2, "search": 2.1, "total": 43.5 }
 }
 ```
 
-### `POST /ask`
+### `POST /ask`  — cùng schema với `rag ask --json`
 ```json
 // request
-{ "question": "Nhân viên được nghỉ phép bao nhiêu ngày?", "top_k": 5 }
+{ "question": "Mật khẩu phải dài tối thiểu bao nhiêu ký tự?", "top_k": 5, "source_prefix": null, "min_score": null }
 // response
 {
-  "answer": "Nhân viên chính thức được 12 ngày phép/năm [1].",
+  "answer": "Mật khẩu tài khoản công ty phải dài tối thiểu 12 ký tự [1].",
   "answered": true,                // false khi bị chặn bởi min_score (không gọi LLM)
-  "sources": [ { "ref": 1, "chunk_id": 42, "source": "samples/hr-policy.md",
-                 "heading_path": ["Nghỉ phép","Năm"], "score": 0.781, "text": "..." } ],
+  "sources": [ { "ref": 1, "chunk_id": 12, "source": "samples/it-security.md",
+                 "heading_path": ["...", "Mật khẩu"], "score": 0.737, "text": "..." } ],
   "cited": [1],                    // các [n] hợp lệ có trong answer
   "invalid_citations": [],         // các [n] không trỏ tới nguồn nào
-  "timings_ms": { "embed": 41, "search": 6, "generate": 3200, "total": 3260 }
+  "timings_ms": { "embed": 61, "search": 5, "generate": 1984, "total": 2050 }
 }
 ```
 
 ### Lỗi
 | HTTP | Khi nào | Body |
 |------|---------|------|
-| 400 | Input không hợp lệ (path không tồn tại, query rỗng) | `{"detail": "..."}` |
-| 503 | DB hoặc Ollama không truy cập được | `{"detail": "ollama unreachable"}` |
-| 409 | Model/dim lệch với dữ liệu đã lưu | `{"detail": "embed model mismatch, run reset"}` |
+| 400 | Path không tồn tại, query không hợp lệ | `{"detail": "..."}` |
+| 409 | Model/dim embedding lệch dữ liệu đã lưu; hoặc đang có ingest khác chạy | `{"detail": "..."}` |
+| 422 | Sai schema request (vd. `query` rỗng, `top_k` ≤ 0 hoặc > 50) | chi tiết lỗi validate của FastAPI |
+| 503 | Postgres/Ollama không truy cập được, model chưa pull | `{"detail": "..."}` |
