@@ -11,7 +11,7 @@ CLI và API là hai lớp mỏng gọi cùng một engine (`build_engine(setting
 | `rag stats` | Số documents, chunks, model, dim | M1 |
 | `rag reset [--yes]` | Xóa toàn bộ dữ liệu (hỏi xác nhận) | M1 |
 | `rag search "<q>" [--top-k N] [--source PREFIX] [--min-score X] [--json]` | Tìm kiếm ngữ nghĩa | M2 |
-| `rag ask "<q>" [--top-k N] [--show-context] [--json]` | Hỏi đáp có trích dẫn | M3 |
+| `rag ask "<q>" [--top-k N] [--source PREFIX] [--min-score X] [--show-context] [--json]` | Hỏi đáp có trích dẫn | M3 |
 | `rag serve [--host] [--port]` | Chạy FastAPI | M4 |
 | `rag eval <golden.yaml> [--top-k N] [--out FILE]` | Đánh giá retrieval | M5 |
 
@@ -69,8 +69,11 @@ MVP nhận đường dẫn trên máy chạy server (local-only).
 // response
 {
   "answer": "Nhân viên chính thức được 12 ngày phép/năm [1].",
+  "answered": true,                // false khi bị chặn bởi min_score (không gọi LLM)
   "sources": [ { "ref": 1, "chunk_id": 42, "source": "samples/hr-policy.md",
-                 "heading_path": ["Nghỉ phép","Năm"], "score": 0.781 } ],
+                 "heading_path": ["Nghỉ phép","Năm"], "score": 0.781, "text": "..." } ],
+  "cited": [1],                    // các [n] hợp lệ có trong answer
+  "invalid_citations": [],         // các [n] không trỏ tới nguồn nào
   "timings_ms": { "embed": 41, "search": 6, "generate": 3200, "total": 3260 }
 }
 ```

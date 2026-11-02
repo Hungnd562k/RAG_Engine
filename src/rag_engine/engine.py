@@ -6,8 +6,11 @@ import httpx
 
 from rag_engine.config import Settings
 from rag_engine.embedding.ollama import OllamaEmbedder
+from rag_engine.generation.prompt import PromptBuilder
 from rag_engine.ingestion.chunker import Chunker
 from rag_engine.ingestion.pipeline import IngestionPipeline
+from rag_engine.llm.ollama import OllamaLLM
+from rag_engine.orchestrator import RagOrchestrator
 from rag_engine.retrieval.retriever import Retriever
 from rag_engine.store.pgvector import PgVectorStore
 
@@ -20,6 +23,8 @@ class Engine:
     chunker: Chunker
     pipeline: IngestionPipeline
     retriever: Retriever
+    llm: OllamaLLM
+    orchestrator: RagOrchestrator
 
     def close(self) -> None:
         self.store.close()
@@ -32,6 +37,7 @@ def build_embedder(s: Settings) -> OllamaEmbedder:
         dim=s.embed_dim,
         batch_size=s.embed_batch_size,
         timeout_s=s.ollama_timeout_s,
+        num_gpu=s.embed_num_gpu,
     )
 
 
@@ -45,13 +51,23 @@ def build_engine(s: Settings) -> Engine:
     embedder = build_embedder(s)
     store = build_store(s)
     chunker = Chunker(s.chunk_size, s.chunk_overlap, s.chars_per_token, s.min_section_tokens)
+    retriever = Retriever(embedder, store, s.min_score)
+    llm = OllamaLLM(
+        base_url=s.ollama_url,
+        model=s.llm_model,
+        temperature=s.llm_temperature,
+        num_ctx=s.llm_num_ctx,
+        timeout_s=s.ollama_timeout_s,
+    )
     return Engine(
         settings=s,
         embedder=embedder,
         store=store,
         chunker=chunker,
         pipeline=IngestionPipeline(chunker, embedder, store),
-        retriever=Retriever(embedder, store, s.min_score),
+        retriever=retriever,
+        llm=llm,
+        orchestrator=RagOrchestrator(retriever, PromptBuilder(s.context_max_chars), llm),
     )
 
 

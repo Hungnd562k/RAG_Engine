@@ -20,20 +20,23 @@ class OllamaEmbedder:
         dim: int = 1024,
         batch_size: int = 16,
         timeout_s: float = 300.0,
+        num_gpu: int | None = None,
         client: httpx.Client | None = None,
     ) -> None:
         self.model = model
         self.dim = dim
         self.batch_size = batch_size
+        self.num_gpu = num_gpu
         self._client = client or httpx.Client(base_url=base_url, timeout=timeout_s)
 
     def _embed_batch(self, texts: list[str]) -> list[list[float]]:
+        payload: dict = {"model": self.model, "input": texts, "truncate": True}
+        if self.num_gpu is not None:
+            payload["options"] = {"num_gpu": self.num_gpu}
         last_exc: Exception | None = None
         for attempt in range(3):
             try:
-                resp = self._client.post(
-                    "/api/embed", json={"model": self.model, "input": texts, "truncate": True}
-                )
+                resp = self._client.post("/api/embed", json=payload)
                 resp.raise_for_status()
                 vectors = resp.json()["embeddings"]
                 break

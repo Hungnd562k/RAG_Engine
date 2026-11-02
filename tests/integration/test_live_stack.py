@@ -63,3 +63,22 @@ def test_ingest_idempotent_and_golden_hit_at_3(engine, monkeypatch):
         if not any(r.source in item["expected_sources"] for r in res.results):
             misses.append(item["id"])
     assert misses == [], f"Golden miss ở top-3: {misses}"
+
+
+def test_ask_golden_answers_and_citations(engine, monkeypatch):
+    """Cần model LLM (RAG_LLM_MODEL) đã pull. Chạy sau test ingest ở trên (cùng module)."""
+    monkeypatch.chdir(ROOT)
+    engine.pipeline.ingest("samples")
+    golden = yaml.safe_load((ROOT / "eval" / "golden.yaml").read_text(encoding="utf-8"))
+    failures = []
+    for item in golden:
+        ans = engine.orchestrator.ask(item["question"], top_k=5)
+        if item.get("out_of_scope"):
+            if ans.answered:
+                failures.append((item["id"], "OOS không bị chặn", ans.text))
+            continue
+        missing = [s for s in item.get("answer_contains", []) if s not in ans.text]
+        if missing or not ans.cited or ans.invalid_citations:
+            failures.append((item["id"], f"missing={missing} cited={ans.cited} "
+                                         f"invalid={ans.invalid_citations}", ans.text))
+    assert failures == [], "\n".join(map(str, failures))

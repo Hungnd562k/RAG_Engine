@@ -40,10 +40,11 @@ cp .env.example .env
 uv sync
 uv run rag health
 
-# 5. Thử end-to-end (M1–M2)
+# 5. Thử end-to-end (M1–M3)
 uv run rag ingest samples/
 uv run rag stats
 uv run rag search "chính sách nghỉ phép năm"
+uv run rag ask "Nhân viên được nghỉ phép bao nhiêu ngày mỗi năm?"
 
 # 6. Tests
 uv run pytest -m "not integration"      # không cần infra
@@ -80,7 +81,7 @@ docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
 docker compose exec ollama nvidia-smi     # thấy GPU trong container
 docker compose exec ollama ollama ps      # cột PROCESSOR = "100% GPU" sau khi gọi embed
 ```
-Với 4 GB VRAM: `bge-m3` + `qwen2.5:3b-instruct` vừa đủ. `qwen2.5:7b-instruct` (~4.7 GB) sẽ bị offload một phần sang CPU.
+Với 4 GB VRAM (đã đo ở M3): `bge-m3` và `qwen2.5:3b-instruct` **không cùng vừa** GPU → Ollama nạp/đẩy model liên tục (embed 2–6 s). Cấu hình khuyến nghị: `RAG_EMBED_NUM_GPU=0` (embed trên CPU, ~50 ms/query) để LLM dùng GPU (76% GPU với `RAG_LLM_NUM_CTX=4096`). Kiểm tra bằng `docker compose exec ollama ollama ps`: `bge-m3` = `100% CPU`, `qwen2.5` phần lớn GPU. `qwen2.5:7b-instruct` (~4.7 GB) sẽ bị offload nhiều sang CPU.
 
 Phương án thay thế: cài Ollama native trên host (dùng GPU trực tiếp), tắt service `ollama` trong compose, giữ `RAG_OLLAMA_URL=http://localhost:11434`.
 
@@ -91,13 +92,16 @@ RAG_OLLAMA_URL=http://localhost:11434
 RAG_EMBED_MODEL=bge-m3
 RAG_EMBED_DIM=1024
 RAG_EMBED_BATCH_SIZE=16
+# GPU <= 4 GB: chạy embed trên CPU để nhường VRAM cho LLM (bỏ dòng này nếu GPU đủ lớn)
+RAG_EMBED_NUM_GPU=0
 RAG_LLM_MODEL=qwen2.5:3b-instruct
 RAG_LLM_TEMPERATURE=0.1
+RAG_LLM_NUM_CTX=4096
 RAG_CHUNK_SIZE=512
 RAG_CHUNK_OVERLAP=64
 RAG_TOP_K=5
 RAG_MIN_SCORE=0.50
-RAG_CONTEXT_MAX_CHARS=12000
+RAG_CONTEXT_MAX_CHARS=8000
 RAG_LOG_LEVEL=INFO
 ```
 Danh sách đầy đủ biến cấu hình: [01-architecture.md §7](01-architecture.md#7-cấu-hình-biến-môi-trường).
@@ -112,4 +116,6 @@ Danh sách đầy đủ biến cấu hình: [01-architecture.md §7](01-architec
 | `Cấu hình lệch với dữ liệu đã lưu` | Đổi `RAG_EMBED_MODEL`/`RAG_EMBED_DIM` sau khi đã ingest | `rag reset --yes` rồi ingest lại |
 | `rag search` báo không có chunk đạt ngưỡng | Câu hỏi ngoài tài liệu, hoặc ngưỡng quá cao | Thử `--min-score 0` để xem score thật |
 | Lỗi build wheel khi `uv sync` | Đang dùng Python 3.14 | Kiểm tra `.python-version` = 3.12 |
+| `rag ask` embed chậm vài giây mỗi câu | Embed và LLM tranh VRAM | `RAG_EMBED_NUM_GPU=0` (xem §3) |
+| Câu trả lời thiếu `[n]` / lạc đề | Prompt vượt `num_ctx` bị cắt, hoặc model quá nhỏ | Giảm `RAG_CONTEXT_MAX_CHARS`, xem `--show-context`; thử model lớn hơn |
 | Reset sạch hoàn toàn | — | `docker compose down -v` (xóa cả models!) |

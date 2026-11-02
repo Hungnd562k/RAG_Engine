@@ -12,6 +12,8 @@ from rich.table import Table
 from rag_engine.config import get_settings
 from rag_engine.embedding.ollama import EmbeddingError
 from rag_engine.engine import Engine, build_engine, build_store, health_checks
+from rag_engine.generation.prompt import format_source
+from rag_engine.llm.ollama import LLMError
 from rag_engine.store.pgvector import EmbeddingConfigMismatch
 
 app = typer.Typer(help="RAG engine CLI (xem Docs/04-interfaces-cli-api.md)", no_args_is_help=True)
@@ -136,6 +138,54 @@ def search(
     if res.results:
         console.print(table)
     console.print(f"[dim]timings: {_fmt_ms(res.timings_ms)}[/]")
+
+
+@app.command()
+def ask(
+    question: Annotated[str, typer.Argument(help="Câu hỏi")],
+    top_k: Annotated[int | None, typer.Option("--top-k", "-k")] = None,
+    source: Annotated[str | None, typer.Option(help="Lọc theo tiền tố source")] = None,
+    min_score: Annotated[float | None, typer.Option(help="Ghi đè RAG_MIN_SCORE")] = None,
+    show_context: Annotated[bool, typer.Option(help="In nội dung các đoạn context")] = False,
+    as_json: Annotated[bool, typer.Option("--json")] = False,
+) -> None:
+    """Hỏi đáp có trích dẫn nguồn [n]."""
+    engine = _engine()
+    try:
+        with console.status(f"Đang hỏi {engine.settings.llm_model}..."):
+            ans = engine.orchestrator.ask(
+                question, top_k or engine.settings.top_k, source_prefix=source, min_score=min_score
+            )
+    except (ValueError, EmbeddingError, LLMError) as exc:
+        console.print(f"[red]✗[/] {exc}")
+        raise typer.Exit(1) from exc
+    finally:
+        engine.close()
+
+    if as_json:
+        print(json.dumps({
+            "answer": ans.text,
+            "answered": ans.answered,
+            "sources": [{"ref": i, **asdict(s)} for i, s in enumerate(ans.sources, 1)],
+            "cited": ans.cited,
+            "invalid_citations": ans.invalid_citations,
+            "timings_ms": ans.timings_ms,
+        }, ensure_ascii=False, indent=2))
+        return
+
+    console.print(ans.text if ans.answered else f"[yellow]{ans.text}[/]")
+    if ans.sources:
+        console.print("\n[bold]Sources:[/]")
+        for i, s in enumerate(ans.sources, 1):
+            mark = "[green]✓[/]" if i in ans.cited else " "
+            console.print(f" {mark} [{i}] {format_source(s)} [dim]({s.score:.3f})[/]", highlight=False)
+            if show_context:
+                console.print(f"[dim]{s.text}[/]\n", highlight=False)
+    if ans.invalid_citations:
+        console.print(f"[red]⚠ Trích dẫn không hợp lệ: {ans.invalid_citations}[/]")
+    elif ans.answered and not ans.cited:
+        console.print("[yellow]⚠ Câu trả lời không có trích dẫn nào.[/]")
+    console.print(f"[dim]timings: {_fmt_ms(ans.timings_ms)}[/]")
 
 
 if __name__ == "__main__":

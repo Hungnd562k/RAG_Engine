@@ -8,7 +8,9 @@
 | R2 | Ollama chỉ trả dense vector của BGE-M3, mất sparse/ColBERT | Recall với từ khóa hiếm/mã số kém | Trung bình | Hybrid search bằng Postgres full-text ở M6 ([ADR-0004](adr/0004-embedding-bge-m3-via-ollama.md)) |
 | R3 | Dimension lock-in (vector(1024)) | Đổi model phải re-embed toàn bộ | Thấp (MVP) | `engine_meta` phát hiện lệch; `rag reset` + ingest lại |
 | R4 | Chunk size tính theo ký tự ước lượng, sai khác token thật với tiếng Việt | Chunk quá dài/ngắn | Trung bình | Đo bằng `rag eval`; cân nhắc tokenizer của bge-m3 (`transformers`) nếu cần chính xác |
-| R5 | LLM bịa hoặc trích dẫn sai `[n]` | Mất tin cậy | Trung bình | Prompt nghiêm, temperature thấp, `min_score` short-circuit, validate citation hậu kỳ |
+| R5 | LLM bịa hoặc trích dẫn sai `[n]` | Mất tin cậy | Trung bình | ✅ Đã triển khai ở M3: `min_score` short-circuit (không gọi LLM), prompt grounding + few-shot, temperature 0.1, `extract_citations` tách `[n]` hợp lệ/không hợp lệ và CLI cảnh báo. Còn lại: 3B đôi khi dài dòng/sai ngôn ngữ trả lời |
+| R9 | Embed + LLM tranh 4 GB VRAM → Ollama nạp/đẩy model liên tục | Mỗi câu hỏi chậm thêm 2–6 s | ~~Cao~~ Đã xử lý | `RAG_EMBED_NUM_GPU=0` (embed trên CPU), `RAG_LLM_NUM_CTX=4096` |
+| R10 | Prompt vượt `num_ctx` → Ollama âm thầm cắt đầu prompt (mất system prompt) | Mất grounding, mất trích dẫn | Trung bình | `RAG_CONTEXT_MAX_CHARS=8000` ≲ `num_ctx × 2`; M5 cân nhắc đếm token thật trước khi gửi |
 | R6 | Ollama thay đổi API/hành vi `/api/embed` (normalize, truncate) | Kết quả lệch | Thấp | Pin image version khi ổn định; integration test kiểm tra dim/cosine |
 | R7 | Python 3.14 hệ thống thiếu wheel cho vài lib | Cài đặt lỗi | ~~Trung bình~~ Đã xử lý | Pin 3.12 qua uv (`.python-version`), `uv sync` chạy sạch |
 | R8 | Golden set nhỏ, chủ quan | Metrics không đại diện | Cao | Coi là smoke metric; mở rộng dần khi có dữ liệu thật |

@@ -50,3 +50,13 @@ class IngestReport:
 class SearchResult:
     results: list[RetrievedChunk]
     timings_ms: dict[str, float]
+
+
+@dataclass
+class Answer:
+    text: str
+    sources: list[RetrievedChunk]  # sources[i] tương ứng trích dẫn [i+1]
+    cited: list[int]  # các số [n] hợp lệ xuất hiện trong câu trả lời
+    invalid_citations: list[int]  # các số [n] không trỏ tới nguồn nào
+    timings_ms: dict[str, float]
+    answered: bool = True  # False khi short-circuit vì không có context đạt ngưỡng

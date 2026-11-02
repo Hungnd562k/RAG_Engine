@@ -7,7 +7,7 @@ Mỗi milestone nhỏ, chạy được, có **Definition of Done (DoD)** kiểm 
 | M0 | Skeleton & Infra | ✅ Done (2026-11-02) |
 | M1 | Ingestion vào pgvector | ✅ Done (2026-11-02) |
 | M2 | Retrieval (`rag search`) | ✅ Done (2026-11-02) |
-| M3 | Generation có trích dẫn (`rag ask`) | ⬜ Todo |
+| M3 | Generation có trích dẫn (`rag ask`) | ✅ Done (2026-11-02) |
 | M4 | REST API | ⬜ Todo |
 | M5 | Evaluation & Tests | ⬜ Todo |
 | M6+ | Mở rộng | 💤 Backlog |
@@ -93,22 +93,30 @@ uv run rag search "Giá bitcoin hôm nay là bao nhiêu?"
 
 **Scope**
 - `LLMProvider` + `OllamaLLM` (`/api/chat`, `stream=false`, temperature thấp).
-- Prompt Builder theo [01-architecture.md §8](01-architecture.md#8-prompt-mặc-định-m3), cắt theo `RAG_CONTEXT_MAX_CHARS`.
+- Prompt Builder theo [01-architecture.md §8](01-architecture.md#8-prompt-mặc-định-m3), cắt theo `RAG_CONTEXT_MAX_CHARS`; kiểm tra trích dẫn `[n]` hậu kỳ (hợp lệ / không hợp lệ).
 - Orchestrator `ask()`: short-circuit khi không có chunk đạt `min_score`.
-- `rag ask "<question>" [--top-k] [--show-context]` in: câu trả lời, danh sách nguồn `[n] source › heading (score)`, timing `embed/search/generate/total`.
+- `rag ask "<question>" [--top-k] [--source] [--min-score] [--show-context] [--json]` in: câu trả lời, danh sách nguồn `[n] source › heading (score)`, timing `embed/search/generate/total`.
 
-**DoD**
+**DoD** — ✅ kết quả thực tế (qwen2.5:3b-instruct trên GPU, bge-m3 trên CPU, model đã nạp):
 ```bash
-uv run rag ask "Nhân viên được nghỉ phép bao nhiêu ngày?"
-# Nhân viên chính thức được 12 ngày phép/năm [1]...
+uv run rag ask "Is SMS allowed for 2FA?"
+# SMS không được chấp nhận làm yếu tố thứ hai trong xác thực hai yếu tố (2FA) [1].
 # Sources:
-#  [1] samples/hr-policy.md › Nghỉ phép năm (0.78)
-# timings: embed=45ms search=8ms generate=3200ms total=3260ms
+#  ✓ [1] samples/it-security.md › Quy định an toàn thông tin › Xác thực hai yếu tố (…)
+# timings: embed=52ms search=3ms generate=1531ms total=1585ms
 
 uv run rag ask "Giá bitcoin hôm nay?"
-# Không tìm thấy thông tin trong tài liệu.
+# Không tìm thấy thông tin trong tài liệu.        ← chặn bởi min_score, không gọi LLM
+# timings: embed=50ms search=2ms total=53ms
 ```
-- Mọi `[n]` trong câu trả lời trỏ tới nguồn có trong danh sách.
+- `tests/integration/test_live_stack.py::test_ask_golden_answers_and_citations`: mọi câu golden có `answer_contains` đúng, ≥ 1 trích dẫn, không trích dẫn sai; câu ngoài phạm vi bị chặn.
+- CLI đánh dấu ✓ nguồn được trích dẫn, cảnh báo khi thiếu trích dẫn hoặc có `[n]` không hợp lệ.
+- Generate 0.6–6 s/câu khi model đã nạp; lần đầu sau khi khởi động thêm vài giây để nạp model.
+
+**Phát hiện khi triển khai (đã xử lý)**
+1. *Tranh chấp VRAM:* `bge-m3` + `qwen2.5:3b` không cùng vừa 4 GB → Ollama đẩy model ra/vào mỗi câu hỏi, embed 2–6 s. Giải pháp: `RAG_EMBED_NUM_GPU=0` (embed chạy CPU ~50 ms/query), `RAG_LLM_NUM_CTX=4096`. LLM vẫn chạy 76% GPU / 24% CPU.
+2. *Model 3B bỏ trích dẫn / từ chối quá mức:* prompt ban đầu chỉ 1/3 câu có `[n]`; quy tắc "không đủ thông tin thì nói không tìm thấy" khiến model từ chối cả câu trả lời được (câu mơ hồ, câu hỏi EN trên tài liệu VI). A/B 4 biến thể prompt trên 12 câu: bỏ quy tắc từ chối (đã có `min_score` chặn trước) + ví dụ mẫu + nhắc lại ở cuối → **12/12** ở top_k 3 và 5 (trước: 9/10).
+3. *Giới hạn còn lại của 3B:* câu trả lời đôi khi dài dòng/rào đón thừa; có lúc trả lời bằng tiếng Việt cho câu hỏi tiếng Anh. Thử `RAG_LLM_MODEL=qwen2.5:7b-instruct` nếu cần chất lượng cao hơn (chậm hơn trên GPU 4 GB).
 
 ---
 

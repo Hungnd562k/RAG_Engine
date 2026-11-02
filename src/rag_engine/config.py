@@ -16,9 +16,13 @@ class Settings(BaseSettings):
     embed_model: str = "bge-m3"
     embed_dim: int = Field(1024, gt=0)
     embed_batch_size: int = Field(16, gt=0)
+    embed_num_gpu: int | None = Field(
+        None, ge=0, description="Số layer embed đưa lên GPU; 0 = chạy CPU, None = Ollama tự quyết"
+    )
 
     llm_model: str = "qwen2.5:3b-instruct"
     llm_temperature: float = 0.1
+    llm_num_ctx: int = Field(4096, gt=0, description="Context window gửi cho Ollama")
 
     chunk_size: int = Field(512, gt=0, description="Kích thước chunk tối đa (token ước lượng)")
     chunk_overlap: int = Field(64, ge=0)
@@ -28,7 +32,7 @@ class Settings(BaseSettings):
     top_k: int = Field(5, gt=0)
     min_score: float = Field(0.50, ge=-1.0, le=1.0)
     hnsw_ef_search: int = Field(40, gt=0)
-    context_max_chars: int = Field(12000, gt=0)
+    context_max_chars: int = Field(8000, gt=0, description="Budget context; giữ dưới ~num_ctx*2.5 ký tự")
 
     log_level: str = "INFO"
 

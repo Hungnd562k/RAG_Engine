@@ -220,9 +220,11 @@ Phụ thuộc chỉ đi một chiều: `cli`/`api` → `orchestrator`/`pipeline`
 | `RAG_EMBED_MODEL` | `bge-m3` | |
 | `RAG_EMBED_DIM` | `1024` | Phải khớp schema |
 | `RAG_EMBED_BATCH_SIZE` | `16` | |
+| `RAG_EMBED_NUM_GPU` | *(trống)* | `0` = embed chạy CPU (khuyến nghị GPU ≤ 4 GB để nhường VRAM cho LLM) |
 | `RAG_OLLAMA_TIMEOUT_S` | `300` | Timeout HTTP tới Ollama |
 | `RAG_LLM_MODEL` | `qwen2.5:3b-instruct` | Vừa GPU 4 GB; 7B dùng được nếu đủ VRAM (xem ADR-0007 addendum) |
 | `RAG_LLM_TEMPERATURE` | `0.1` | |
+| `RAG_LLM_NUM_CTX` | `4096` | Context window của LLM |
 | `RAG_CHUNK_SIZE` | `512` | token ước lượng = ký tự / `RAG_CHARS_PER_TOKEN` |
 | `RAG_CHUNK_OVERLAP` | `64` | |
 | `RAG_CHARS_PER_TOKEN` | `4.0` | Hệ số ước lượng token |
@@ -230,28 +232,43 @@ Phụ thuộc chỉ đi một chiều: `cli`/`api` → `orchestrator`/`pipeline`
 | `RAG_TOP_K` | `5` | |
 | `RAG_MIN_SCORE` | `0.50` | Ngưỡng cosine, đã đo trên samples ([Q6](07-risks-and-open-questions.md#q6--ngưỡng-min_score)) |
 | `RAG_HNSW_EF_SEARCH` | `40` | Tăng để recall cao hơn |
-| `RAG_CONTEXT_MAX_CHARS` | `12000` | Budget context đưa vào prompt |
+| `RAG_CONTEXT_MAX_CHARS` | `8000` | Budget context đưa vào prompt; phải vừa `RAG_LLM_NUM_CTX` |
 | `RAG_LOG_LEVEL` | `INFO` | |
 
 ## 8. Prompt mặc định (M3)
 
+Nguồn: `src/rag_engine/generation/prompt.py`.
+
 ```
 SYSTEM:
-Bạn là trợ lý trả lời dựa trên tài liệu được cung cấp.
-- Chỉ sử dụng thông tin trong phần CONTEXT.
-- Mỗi ý phải kèm trích dẫn dạng [n] tương ứng với đoạn context.
-- Nếu CONTEXT không đủ để trả lời, hãy nói: "Không tìm thấy thông tin trong tài liệu."
-- Trả lời bằng ngôn ngữ của câu hỏi.
+Bạn là trợ lý trả lời câu hỏi dựa trên tài liệu được cung cấp.
+Quy tắc:
+- Chỉ sử dụng thông tin trong phần CONTEXT. Không dùng kiến thức bên ngoài, không suy đoán.
+- Các đoạn CONTEXT có thể khác ngôn ngữ với câu hỏi.
+- BẮT BUỘC: cuối mỗi câu trả lời phải có trích dẫn dạng [n] ...
+- Nếu CONTEXT chỉ trả lời được một phần, trả lời phần đó và nói rõ phần còn thiếu.
+- Trả lời ngắn gọn, chính xác, bằng cùng ngôn ngữ với câu hỏi.
++ 1 ví dụ mẫu (few-shot) CONTEXT → QUESTION → TRẢ LỜI có [1]
 
 USER:
 CONTEXT:
-[1] (source: docs/a.md › Heading A)
+[1] (source: samples/a.md › Heading A)
 ...
-[2] (source: docs/b.md › Heading B)
+[2] (source: samples/b.md › Heading B)
 ...
 
 QUESTION: <câu hỏi>
+
+Trả lời câu hỏi trên, nhớ ghi trích dẫn [n] sau mỗi câu.
 ```
+
+Thiết kế hai lớp chống "bịa":
+1. **Retrieval gate** (Orchestrator): không chunk nào đạt `min_score` → trả `"Không tìm thấy thông tin trong tài liệu."`, **không gọi LLM**.
+2. **Prompt grounding**: chỉ dùng CONTEXT, bắt buộc trích dẫn; sau khi sinh, `extract_citations` tách `[n]` hợp lệ / không hợp lệ để CLI/API cảnh báo.
+
+Prompt **cố ý không** có quy tắc "nếu không biết thì nói không tìm thấy": với `qwen2.5:3b` quy tắc này làm model từ chối cả câu trả lời được (đo A/B ở M3, xem [02-milestones.md](02-milestones.md)).
+
+Lưu ý `num_ctx`: nếu prompt vượt `RAG_LLM_NUM_CTX`, Ollama âm thầm cắt phần **đầu** prompt (mất system prompt) → giữ `RAG_CONTEXT_MAX_CHARS` ≲ `num_ctx × 2` ký tự.
 
 ## 9. Điểm mở rộng (M6+)
 - **Hybrid search:** thêm cột `tsvector` + GIN index, kết hợp với vector bằng Reciprocal Rank Fusion trong `Retriever`.
