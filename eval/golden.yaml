@@ -1,0 +1,33 @@
+# Golden set cho retrieval (Docs/06-evaluation-and-testing.md). Mở rộng lên ≥ 20 câu ở M5.
+- id: q01
+  question: "Nhân viên được nghỉ phép bao nhiêu ngày mỗi năm?"
+  expected_sources: ["samples/hr-policy.md"]
+  expected_heading: "Nghỉ phép năm"
+  answer_contains: ["12 ngày"]
+- id: q02
+  question: "Mật khẩu phải dài tối thiểu bao nhiêu ký tự?"
+  expected_sources: ["samples/it-security.md"]
+  expected_heading: "Mật khẩu"
+  answer_contains: ["12 ký tự"]
+- id: q03
+  question: "Khách sạn công tác ở TP.HCM được thanh toán tối đa bao nhiêu một đêm?"
+  expected_sources: ["samples/expense-policy.md"]
+  expected_heading: "Định mức công tác trong nước"
+  answer_contains: ["1.200.000"]
+- id: q04
+  question: "Làm việc từ nước ngoài được tối đa bao nhiêu ngày?"   # cross-lingual: hỏi VI, tài liệu EN
+  expected_sources: ["samples/remote-work-policy.md"]
+  expected_heading: "Working abroad"
+  answer_contains: ["30"]
+- id: q05
+  question: "How long are deleted files kept on the Business plan?"
+  expected_sources: ["samples/product-faq.md"]
+  expected_heading: "How do I restore a deleted file?"
+  answer_contains: ["180"]
+- id: q06
+  question: "Gửi ô tô ở tầng hầm mất bao nhiêu tiền?"
+  expected_sources: ["samples/office-notes.txt"]
+  answer_contains: ["1.500.000"]
+- id: q07
+  question: "Giá bitcoin hôm nay là bao nhiêu?"
+  out_of_scope: true

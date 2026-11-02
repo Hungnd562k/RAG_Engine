@@ -47,6 +47,8 @@ Nguyên tắc: ≥ 20 câu; có câu hỏi diễn đạt khác từ ngữ tài l
 ## 6. Baseline (điền khi xong M5)
 | Ngày | Cấu hình | hit@1 | hit@3 | hit@5 | MRR | OOS precision | search p50 |
 |------|----------|-------|-------|-------|-----|---------------|-----------|
-| — | chunk=512, overlap=64, min_score=0.35 | | | | | | |
+| 2026-11-02 (sơ bộ, M2, 6 câu golden + 8 câu OOS) | bge-m3, chunk=512, overlap=64, min_score=0.50, TXT tách đoạn | 1.00 | 1.00 | 1.00 | 1.00 | 8/8 | ~3 ms (embed ~45 ms, CPU) |
+
+> Dòng sơ bộ đo bằng script tạm, golden set mới 6 câu → chưa đại diện. Baseline chính thức chạy bằng `rag eval` ở M5.
 
 Mỗi lần thay đổi chunking/model/ngưỡng: thêm một dòng mới để so sánh.

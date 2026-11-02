@@ -24,3 +24,7 @@ Chất lượng retrieval phụ thuộc mạnh vào cách chia chunk. Chunk quá
 ## Hệ quả
 - Kết quả search hiển thị được `source › heading`, giúp người dùng kiểm chứng ngay.
 - Tham số sẽ được tinh chỉnh dựa trên số đo ở M5 và ghi baseline vào [06-evaluation-and-testing.md](../06-evaluation-and-testing.md).
+
+## Addendum 2026-11-02 (làm rõ khi triển khai M1–M2, không đổi quyết định)
+- **TXT:** thay vì "cả file là một section", mỗi **đoạn văn** (ngăn bởi dòng trống) là một section; đoạn < `min_section_tokens` vẫn được gộp vào đoạn sau. Lý do đo được: `samples/office-notes.txt` (~1.000 ký tự, 5 chủ đề) thành 1 chunk "loãng", câu hỏi về gửi ô tô rơi xuống rank 4; sau khi sửa lên rank 1 (score 0.448 → 0.690).
+- **Gộp section nhỏ:** section gộp mang `heading_path` của section phía sau (thường là heading con, đã chứa heading cha), nội dung giữ nguyên các dòng heading.

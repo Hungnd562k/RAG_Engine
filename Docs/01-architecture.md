@@ -29,7 +29,7 @@ flowchart LR
 
     subgraph Infra["Infra (docker compose)"]
         PG[(PostgreSQL + pgvector)]
-        OLL[Ollama: bge-m3, qwen2.5:7b-instruct]
+        OLL[Ollama: bge-m3, qwen2.5:3b-instruct]
     end
 
     CLI --> ORCH
@@ -220,12 +220,16 @@ Phụ thuộc chỉ đi một chiều: `cli`/`api` → `orchestrator`/`pipeline`
 | `RAG_EMBED_MODEL` | `bge-m3` | |
 | `RAG_EMBED_DIM` | `1024` | Phải khớp schema |
 | `RAG_EMBED_BATCH_SIZE` | `16` | |
-| `RAG_LLM_MODEL` | `qwen2.5:7b-instruct` | |
+| `RAG_OLLAMA_TIMEOUT_S` | `300` | Timeout HTTP tới Ollama |
+| `RAG_LLM_MODEL` | `qwen2.5:3b-instruct` | Vừa GPU 4 GB; 7B dùng được nếu đủ VRAM (xem ADR-0007 addendum) |
 | `RAG_LLM_TEMPERATURE` | `0.1` | |
-| `RAG_CHUNK_SIZE` | `512` | token xấp xỉ (≈ 4 ký tự/token cho EN, ít hơn cho VI) |
+| `RAG_CHUNK_SIZE` | `512` | token ước lượng = ký tự / `RAG_CHARS_PER_TOKEN` |
 | `RAG_CHUNK_OVERLAP` | `64` | |
+| `RAG_CHARS_PER_TOKEN` | `4.0` | Hệ số ước lượng token |
+| `RAG_MIN_SECTION_TOKENS` | `50` | Section nhỏ hơn được gộp vào section sau |
 | `RAG_TOP_K` | `5` | |
-| `RAG_MIN_SCORE` | `0.35` | Ngưỡng cosine; tinh chỉnh ở M5 |
+| `RAG_MIN_SCORE` | `0.50` | Ngưỡng cosine, đã đo trên samples ([Q6](07-risks-and-open-questions.md#q6--ngưỡng-min_score)) |
+| `RAG_HNSW_EF_SEARCH` | `40` | Tăng để recall cao hơn |
 | `RAG_CONTEXT_MAX_CHARS` | `12000` | Budget context đưa vào prompt |
 | `RAG_LOG_LEVEL` | `INFO` | |
 

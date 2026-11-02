@@ -2,7 +2,7 @@
 
 Tài liệu cho việc xây dựng một RAG engine chạy **local**, tối giản, nhìn thấy kết quả ngay và tự kiểm chứng được.
 
-**Stack chốt:** Python 3.12 · Ollama (`bge-m3` cho embedding, `qwen2.5:7b-instruct` cho generation) · PostgreSQL + pgvector · CLI (Typer) + FastAPI.
+**Stack chốt:** Python 3.12 · Ollama (`bge-m3` cho embedding, `qwen2.5:3b-instruct` cho generation) · PostgreSQL + pgvector · CLI (Typer) + FastAPI.
 
 ## Mục lục
 
