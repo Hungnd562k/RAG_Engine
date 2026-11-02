@@ -5,6 +5,7 @@ import numpy as np
 import psycopg
 from pgvector.psycopg import register_vector
 from psycopg.types.json import Jsonb
+from psycopg_pool import ConnectionPool
 
 from rag_engine.models import Chunk, Document, RetrievedChunk
 
@@ -18,7 +19,11 @@ class EmbeddingConfigMismatch(RuntimeError):
 
 
 class PgVectorStore:
-    """VectorStore trên PostgreSQL + pgvector (ADR-0005, Docs/03-data-model.md)."""
+    """VectorStore trên PostgreSQL + pgvector (ADR-0005, Docs/03-data-model.md).
+
+    Dùng connection pool: an toàn khi nhiều thread (FastAPI) gọi song song; mỗi thao tác
+    mượn một connection riêng nên transaction của ingest không lẫn với search.
+    """
 
     def __init__(
         self,
@@ -27,37 +32,53 @@ class PgVectorStore:
         embed_dim: int,
         ef_search: int = 40,
         verify_meta: bool = True,
+        pool_min_size: int = 1,
+        pool_max_size: int = 4,
     ) -> None:
+        self.database_url = database_url
         self.embed_model = embed_model
         self.embed_dim = embed_dim
         self.ef_search = ef_search
-        self.conn = psycopg.connect(database_url, autocommit=True, connect_timeout=5)
-        self._ensure_schema(verify_meta)
-        register_vector(self.conn)
-        self.conn.execute("SELECT set_config('hnsw.ef_search', %s, false)", (str(ef_search),))
+        # Schema phải có trước khi register_vector (cần type `vector`) → tạo bằng connection riêng.
+        with psycopg.connect(database_url, autocommit=True, connect_timeout=5) as conn:
+            self._ensure_schema(conn, verify_meta)
+        self.pool = ConnectionPool(
+            database_url,
+            min_size=pool_min_size,
+            max_size=pool_max_size,
+            kwargs={"autocommit": True, "connect_timeout": 5},
+            configure=self._configure,
+            open=True,
+        )
+        self.pool.wait(timeout=10)
+
+    def _configure(self, conn: psycopg.Connection) -> None:
+        register_vector(conn)
+        conn.execute("SELECT set_config('hnsw.ef_search', %s, false)", (str(self.ef_search),))
 
     # ---------- schema & meta ----------
-    def _ensure_schema(self, verify_meta: bool = True) -> None:
+    def _ensure_schema(self, conn: psycopg.Connection, verify_meta: bool = True) -> None:
         sql = resources.files("rag_engine.store").joinpath("schema.sql").read_text()
-        with self.conn.transaction():
-            self.conn.execute(sql.format(dim=int(self.embed_dim)))
+        with conn.transaction():
+            conn.execute(sql.format(dim=int(self.embed_dim)))
         if verify_meta:
-            self.check_meta()
+            self._check_meta(conn)
 
-    def _meta(self) -> dict[str, str]:
-        return dict(self.conn.execute("SELECT key, value FROM engine_meta").fetchall())
+    @staticmethod
+    def _meta(conn: psycopg.Connection) -> dict[str, str]:
+        return dict(conn.execute("SELECT key, value FROM engine_meta").fetchall())
 
-    def check_meta(self) -> None:
-        meta = self._meta()
+    def _check_meta(self, conn: psycopg.Connection) -> None:
+        meta = self._meta(conn)
         wanted = {
             "embed_model": self.embed_model,
             "embed_dim": str(self.embed_dim),
             "schema_version": SCHEMA_VERSION,
         }
         if not meta:
-            with self.conn.transaction():
+            with conn.transaction():
                 for k, v in wanted.items():
-                    self.conn.execute("INSERT INTO engine_meta(key, value) VALUES (%s, %s)", (k, v))
+                    conn.execute("INSERT INTO engine_meta(key, value) VALUES (%s, %s)", (k, v))
             return
         diff = {k: (meta.get(k), v) for k, v in wanted.items() if meta.get(k) != v}
         if diff:
@@ -66,17 +87,23 @@ class PgVectorStore:
                 f"Cấu hình lệch với dữ liệu đã lưu ({details}). Chạy `rag reset --yes` rồi ingest lại."
             )
 
+    def check_meta(self) -> None:
+        with self.pool.connection() as conn:
+            self._check_meta(conn)
+
     def extension_version(self) -> str | None:
-        row = self.conn.execute(
-            "SELECT extversion FROM pg_extension WHERE extname = 'vector'"
-        ).fetchone()
+        with self.pool.connection() as conn:
+            row = conn.execute(
+                "SELECT extversion FROM pg_extension WHERE extname = 'vector'"
+            ).fetchone()
         return row[0] if row else None
 
     # ---------- documents ----------
     def get_document_hash(self, source: str) -> str | None:
-        row = self.conn.execute(
-            "SELECT content_hash FROM documents WHERE source = %s", (source,)
-        ).fetchone()
+        with self.pool.connection() as conn:
+            row = conn.execute(
+                "SELECT content_hash FROM documents WHERE source = %s", (source,)
+            ).fetchone()
         return row[0] if row else None
 
     def replace_document(
@@ -84,7 +111,7 @@ class PgVectorStore:
     ) -> None:
         if len(chunks) != len(vectors):
             raise ValueError("Số chunks và vectors không khớp")
-        with self.conn.transaction(), self.conn.cursor() as cur:
+        with self.pool.connection() as conn, conn.transaction(), conn.cursor() as cur:
             cur.execute(
                 """
                 INSERT INTO documents (source, content_hash, title, metadata)
@@ -122,13 +149,15 @@ class PgVectorStore:
             )
 
     def delete_document(self, source: str) -> None:
-        self.conn.execute("DELETE FROM documents WHERE source = %s", (source,))
+        with self.pool.connection() as conn:
+            conn.execute("DELETE FROM documents WHERE source = %s", (source,))
 
     def list_sources(self, prefix: str = "") -> list[str]:
-        rows = self.conn.execute(
-            "SELECT source FROM documents WHERE starts_with(source, %s) ORDER BY source",
-            (prefix,),
-        ).fetchall()
+        with self.pool.connection() as conn:
+            rows = conn.execute(
+                "SELECT source FROM documents WHERE starts_with(source, %s) ORDER BY source",
+                (prefix,),
+            ).fetchall()
         return [r[0] for r in rows]
 
     # ---------- search ----------
@@ -136,18 +165,19 @@ class PgVectorStore:
         self, vector: list[float], top_k: int, source_prefix: str | None = None
     ) -> list[RetrievedChunk]:
         q = np.asarray(vector, dtype=np.float32)
-        rows = self.conn.execute(
-            """
-            SELECT c.id, d.source, c.content, c.heading_path,
-                   1 - (c.embedding <=> %(q)s) AS score
-            FROM chunks c
-            JOIN documents d ON d.id = c.document_id
-            WHERE %(prefix)s::text IS NULL OR starts_with(d.source, %(prefix)s::text)
-            ORDER BY c.embedding <=> %(q)s
-            LIMIT %(k)s
-            """,
-            {"q": q, "prefix": source_prefix, "k": top_k},
-        ).fetchall()
+        with self.pool.connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT c.id, d.source, c.content, c.heading_path,
+                       1 - (c.embedding <=> %(q)s) AS score
+                FROM chunks c
+                JOIN documents d ON d.id = c.document_id
+                WHERE %(prefix)s::text IS NULL OR starts_with(d.source, %(prefix)s::text)
+                ORDER BY c.embedding <=> %(q)s
+                LIMIT %(k)s
+                """,
+                {"q": q, "prefix": source_prefix, "k": top_k},
+            ).fetchall()
         return [
             RetrievedChunk(
                 chunk_id=r[0], source=r[1], text=r[2], heading_path=tuple(r[3]), score=float(r[4])
@@ -157,23 +187,28 @@ class PgVectorStore:
 
     # ---------- admin ----------
     def stats(self) -> dict:
-        docs, chunks = self.conn.execute(
-            "SELECT (SELECT count(*) FROM documents), (SELECT count(*) FROM chunks)"
-        ).fetchone()
-        meta = self._meta()
+        with self.pool.connection() as conn:
+            docs, chunks = conn.execute(
+                "SELECT (SELECT count(*) FROM documents), (SELECT count(*) FROM chunks)"
+            ).fetchone()
+            meta = self._meta(conn)
+            version = conn.execute(
+                "SELECT extversion FROM pg_extension WHERE extname = 'vector'"
+            ).fetchone()
         return {
             "documents": docs,
             "chunks": chunks,
             "embed_model": meta.get("embed_model"),
             "embed_dim": int(meta["embed_dim"]) if "embed_dim" in meta else None,
-            "pgvector": self.extension_version(),
+            "pgvector": version[0] if version else None,
         }
 
     def reset(self) -> None:
         """Xóa toàn bộ dữ liệu và schema, tạo lại theo cấu hình hiện tại."""
-        with self.conn.transaction():
-            self.conn.execute("DROP TABLE IF EXISTS chunks, documents, engine_meta CASCADE")
-        self._ensure_schema()
+        with self.pool.connection() as conn:
+            with conn.transaction():
+                conn.execute("DROP TABLE IF EXISTS chunks, documents, engine_meta CASCADE")
+            self._ensure_schema(conn)
 
     def close(self) -> None:
-        self.conn.close()
+        self.pool.close()

@@ -199,6 +199,8 @@ RAG_Engine/
 │   ├── retrieval/retriever.py
 │   ├── generation/prompt.py
 │   ├── orchestrator.py
+│   ├── schemas.py                # Pydantic schema dùng chung API + CLI --json
+│   ├── engine.py                 # build_engine(settings), health_checks
 │   ├── evaluation/evaluator.py
 │   ├── cli.py                    # entrypoint `rag`
 │   └── api/main.py               # FastAPI app
