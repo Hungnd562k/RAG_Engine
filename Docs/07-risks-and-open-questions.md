@@ -4,7 +4,7 @@
 
 | # | Rủi ro | Ảnh hưởng | Khả năng | Giảm thiểu |
 |---|--------|-----------|----------|------------|
-| R1 | GPU chỉ 4 GB VRAM (RTX 3050 Laptop) và Docker chưa có NVIDIA runtime → Ollama chạy CPU; `qwen2.5:7b` (~4.7 GB) không vừa VRAM | Generation chậm, trải nghiệm "thấy ngay" kém | Cao | Mặc định đổi sang `qwen2.5:3b-instruct` (~1.9 GB, vừa VRAM cùng `bge-m3` ~1.2 GB); bật GPU bằng `docker-compose.gpu.yml` sau khi cài nvidia-container-toolkit; `rag search` vẫn nhanh để kiểm chứng retrieval độc lập |
+| R1 | GPU chỉ 4 GB VRAM (RTX 3050 Laptop); `qwen2.5:7b` (~4.7 GB) không vừa VRAM (NVIDIA runtime đã cài, Ollama chạy GPU) | Generation chậm, trải nghiệm "thấy ngay" kém | Cao | Mặc định đổi sang `qwen2.5:3b-instruct` (~1.9 GB, vừa VRAM cùng `bge-m3` ~1.2 GB); bật GPU bằng `docker-compose.gpu.yml` sau khi cài nvidia-container-toolkit; `rag search` vẫn nhanh để kiểm chứng retrieval độc lập |
 | R2 | Ollama chỉ trả dense vector của BGE-M3, mất sparse/ColBERT | Recall với từ khóa hiếm/mã số kém | Trung bình | Hybrid search bằng Postgres full-text ở M6 ([ADR-0004](adr/0004-embedding-bge-m3-via-ollama.md)) |
 | R3 | Dimension lock-in (vector(1024)) | Đổi model phải re-embed toàn bộ | Thấp (MVP) | `engine_meta` phát hiện lệch; `rag reset` + ingest lại |
 | R4 | Chunk size tính theo ký tự ước lượng, sai khác token thật với tiếng Việt | Chunk quá dài/ngắn | Trung bình | Đo bằng `rag eval`; cân nhắc tokenizer của bge-m3 (`transformers`) nếu cần chính xác |
@@ -38,7 +38,7 @@
 **Chốt: không cho MVP** — local, một người dùng, dữ liệu mẫu không nhạy cảm. Trước khi nạp dữ liệu thật có phân quyền: thêm `documents.metadata.acl` (danh sách group được xem) + filter SQL trong `VectorStore.search` theo group của người gọi, và auth ở API (M6). Lọc phải nằm **trong truy vấn DB** (trước top-k), không lọc sau khi đã đưa vào prompt.
 
 ### Q5 — GPU & model mặc định
-**Phần cứng (đo 2026-11-02):** NVIDIA GeForce RTX 3050 Laptop GPU **4 GB VRAM** (driver 595.99), RAM 22 GB, 12 luồng CPU. Docker **chưa có NVIDIA runtime** (`nvidia-container-toolkit` chưa cài) → Ollama trong container đang chạy **CPU**.
+**Phần cứng (đo 2026-11-02):** NVIDIA GeForce RTX 3050 Laptop GPU **4 GB VRAM** (driver 595.99), RAM 22 GB, 12 luồng CPU. Ban đầu Docker chưa có NVIDIA runtime → Ollama chạy CPU. **Đã cài nvidia-container-toolkit (2026-11-02)**: Ollama nhận CUDA (compute 8.6), `bge-m3` chạy 100% GPU; ingest samples 6.9 s → 0.6 s, embed query ~45 ms → ~15 ms.
 
 **Chốt:**
 - LLM mặc định: **`qwen2.5:3b-instruct`** (~1.9 GB Q4). `bge-m3` (~1.2 GB) + 3B vừa đủ 4 GB VRAM khi bật GPU; trên CPU vẫn chấp nhận được (ước tính 5–10 token/s).

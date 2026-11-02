@@ -12,7 +12,14 @@ Mục tiêu: từ máy trắng (có Docker) → `rag health` OK → `rag search`
 | GPU (tùy chọn) | NVIDIA + nvidia-container-toolkit | Không có vẫn chạy CPU; xem [§3](#gpu-nvidia) |
 | Ổ đĩa | ~6 GB | Images + models + data |
 
-Máy dev tham chiếu (2026-11-02): RTX 3050 Laptop 4 GB VRAM, 22 GB RAM, 12 luồng CPU; Ollama đang chạy CPU vì Docker chưa có NVIDIA runtime.
+Máy dev tham chiếu (2026-11-02): RTX 3050 Laptop 4 GB VRAM, 22 GB RAM, 12 luồng CPU, Ubuntu 26.04; đã cài nvidia-container-toolkit, Ollama chạy GPU qua `docker-compose.gpu.yml`.
+
+| Đo trên samples (33 chunks) | CPU | GPU (RTX 3050 4 GB) |
+|---|---|---|
+| `rag ingest` (model đã nạp) | 6.9 s | 0.6 s |
+| Embed 1 query | ~45 ms | ~15 ms |
+| Nạp model lần đầu (cold start) | vài giây | ~1.5 s |
+| VRAM cho bge-m3 | — | ~0.7 GB (`ollama ps`: 100% GPU) |
 
 ## 2. Các bước
 ```bash
@@ -56,7 +63,13 @@ Output `rag health` mong đợi (trước khi pull LLM, dòng LLM là WARN và k
 ## 3. GPU NVIDIA
 Ollama trong container chỉ dùng được GPU khi host có **nvidia-container-toolkit** (cần sudo):
 ```bash
-# Ubuntu — theo hướng dẫn chính thức của NVIDIA Container Toolkit
+# Ubuntu — theo hướng dẫn chính thức của NVIDIA Container Toolkit (chạy trong terminal thật, sudo cần nhập mật khẩu)
+curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey \
+  | sudo gpg --dearmor --yes -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
+curl -s -L https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list \
+  | sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' \
+  | sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
+sudo apt-get update
 sudo apt-get install -y nvidia-container-toolkit
 sudo nvidia-ctk runtime configure --runtime=docker
 sudo systemctl restart docker
@@ -65,6 +78,7 @@ docker info | grep -i runtimes            # phải thấy "nvidia"
 # Chạy lại Ollama với override GPU
 docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
 docker compose exec ollama nvidia-smi     # thấy GPU trong container
+docker compose exec ollama ollama ps      # cột PROCESSOR = "100% GPU" sau khi gọi embed
 ```
 Với 4 GB VRAM: `bge-m3` + `qwen2.5:3b-instruct` vừa đủ. `qwen2.5:7b-instruct` (~4.7 GB) sẽ bị offload một phần sang CPU.
 
