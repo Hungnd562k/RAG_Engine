@@ -9,3 +9,16 @@ services:
             - driver: nvidia
               count: all
               capabilities: [gpu]
+
+  # Reranker trên GPU: bản CPU mất ~12 s cho 20 ứng viên (đo M6a). Image 86-* cho Ampere (RTX 30xx).
+  # 86-1.8 lỗi nạp XLM-RoBERTa (`cannot find tensor embeddings.word_embeddings.weight`) → dùng 1.7.
+  # Chiếm ~2.4 GB VRAM (giảm max-batch-tokens không đổi).
+  reranker:
+    image: ghcr.io/huggingface/text-embeddings-inference:86-1.7
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]

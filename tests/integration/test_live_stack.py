@@ -123,3 +123,21 @@ def test_api_against_live_engine(engine, monkeypatch):
         ans = c.post("/ask", json={"question": "Mật khẩu phải dài tối thiểu bao nhiêu ký tự?"}).json()
         assert ans["answered"] and "12" in ans["answer"] and ans["cited"]
         assert c.post("/ask", json={"question": "Giá bitcoin hôm nay?"}).json()["answered"] is False
+
+
+def test_tei_reranker_live():
+    """Cần `docker compose up -d reranker`; bỏ qua nếu service không chạy."""
+    import httpx
+
+    from rag_engine.rerank.tei import TEIReranker
+
+    r = TEIReranker(Settings().rerank_url, timeout_s=120)
+    try:
+        r.info()
+    except httpx.HTTPError as exc:
+        pytest.skip(f"Reranker không sẵn sàng: {exc}")
+    scores = r.rerank(
+        "Job recon.daily chạy lúc mấy giờ?",
+        ["Văn phòng mở cửa từ 8:00.", "Job recon.daily chạy lúc 01:00 mỗi ngày."],
+    )
+    assert scores[1] > 0.5 > scores[0]

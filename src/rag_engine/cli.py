@@ -244,7 +244,8 @@ def eval_cmd(
     m = report.metrics
     console.print(
         f"[bold]in-scope={report.n_in_scope} oos={report.n_oos} top_k={report.top_k} "
-        f"min_score={report.min_score} mode={engine.settings.search_mode}[/]"
+        f"min_score={report.min_score} mode={engine.settings.effective_search_mode} "
+        f"rerank={engine.settings.rerank_enabled}[/]"
     )
     keys = [
         x
@@ -273,12 +274,16 @@ def eval_cmd(
     out.parent.mkdir(parents=True, exist_ok=True)
     payload = {
         "golden": [str(g) for g in golden],
-        "config": engine.settings.model_dump(
-            include={
-                "embed_model", "llm_model", "chunk_size", "chunk_overlap", "min_score", "top_k",
-                "search_mode", "hybrid_alpha", "hybrid_candidates",
-            }
-        ),
+        "config": {
+            **engine.settings.model_dump(
+                include={
+                    "embed_model", "llm_model", "chunk_size", "chunk_overlap", "min_score", "top_k",
+                    "search_mode", "hybrid_alpha", "hybrid_candidates",
+                    "rerank_enabled", "rerank_candidates",
+                }
+            ),
+            "effective_search_mode": engine.settings.effective_search_mode,
+        },
         **report.to_dict(),
     }
     out.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")

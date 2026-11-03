@@ -68,11 +68,13 @@ HTTP 200 nếu mọi thành phần bắt buộc OK (kể cả khi thiếu LLM �
 {
   "results": [
     { "chunk_id": 6, "source": "samples/hr-policy.md", "heading_path": ["...", "Nghỉ phép", "Nghỉ phép năm"],
-      "score": 0.7018, "text": "## Nghỉ phép ..." }
+      "score": 0.7018, "lexical": 0.41, "rerank": 0.97, "text": "## Nghỉ phép ..." }
   ],
-  "timings_ms": { "embed": 41.2, "search": 2.1, "total": 43.5 }
+  "timings_ms": { "embed": 41.2, "search": 6.1, "rerank": 480.3, "total": 527.6 }
 }
 ```
+- `score` luôn là cosine. `lexical` (độ phủ từ khóa IDF, 0–1) chỉ có ở chế độ hybrid; `rerank` (cross-encoder, 0–1) và `timings_ms.rerank` chỉ có khi `RAG_RERANK_ENABLED=true`. Trường nào không áp dụng thì là `null` hoặc vắng mặt.
+- Thứ tự `results` là thứ tự xếp hạng cuối cùng (rerank > điểm gộp hybrid > cosine), không nhất thiết giảm dần theo `score`.
 
 ### `POST /ask`  — cùng schema với `rag ask --json`
 ```json

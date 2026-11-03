@@ -1,8 +1,10 @@
 import time
+from dataclasses import replace
 from typing import Literal
 
 from rag_engine.embedding.base import Embedder
 from rag_engine.models import RetrievedChunk, SearchResult
+from rag_engine.rerank.base import Reranker
 from rag_engine.store.base import VectorStore
 
 SearchMode = Literal["dense", "hybrid"]
@@ -29,6 +31,9 @@ class Retriever:
       < min_score — giữ nguyên cách chặn câu ngoài phạm vi của dense. Nếu không bị chặn,
       giữ chunk có điểm gộp ≥ min_score.
 
+    Có `reranker`: lấy `rerank_candidates` chunk đã qua bước trên, chấm lại bằng cross-encoder
+    rồi trả top-k theo điểm rerank (ADR-0011). Việc chặn câu ngoài phạm vi vẫn theo cosine.
+
     `score` của chunk trả về luôn là cosine; `top_score` là cosine cao nhất (điểm để chặn).
     """
 
@@ -40,6 +45,8 @@ class Retriever:
         mode: SearchMode = "dense",
         alpha: float = 0.15,
         candidates: int = 20,
+        reranker: Reranker | None = None,
+        rerank_candidates: int = 20,
     ) -> None:
         self.embedder = embedder
         self.store = store
@@ -47,6 +54,8 @@ class Retriever:
         self.mode = mode
         self.alpha = alpha
         self.candidates = candidates
+        self.reranker = reranker
+        self.rerank_candidates = rerank_candidates
 
     def retrieve(
         self,
@@ -62,27 +71,38 @@ class Retriever:
         vector = self.embedder.embed([query])[0]
         t1 = time.perf_counter()
 
+        # Có reranker → lấy nhiều ứng viên hơn top_k để cross-encoder chọn lại.
+        n = top_k if self.reranker is None else max(top_k, self.rerank_candidates)
         if self.mode == "hybrid":
             cands = self.store.hybrid_search(
-                query, vector, candidates=max(self.candidates, top_k), source_prefix=source_prefix
+                query, vector, candidates=max(self.candidates, n), source_prefix=source_prefix
             )
             top = max((h.score for h in cands), default=None)
             if top is None or top < threshold:
                 results: list[RetrievedChunk] = []
             else:
-                results = [h for s, h in fuse(cands, self.alpha) if s >= threshold][:top_k]
+                results = [h for s, h in fuse(cands, self.alpha) if s >= threshold][:n]
         else:
-            hits = self.store.search(vector, top_k=top_k, source_prefix=source_prefix)
+            hits = self.store.search(vector, top_k=n, source_prefix=source_prefix)
             top = hits[0].score if hits else None
             results = [h for h in hits if h.score >= threshold]
         t2 = time.perf_counter()
 
-        return SearchResult(
-            results=results,
-            timings_ms={
-                "embed": (t1 - t0) * 1000,
-                "search": (t2 - t1) * 1000,
-                "total": (t2 - t0) * 1000,
-            },
-            top_score=top,
-        )
+        timings = {"embed": (t1 - t0) * 1000, "search": (t2 - t1) * 1000}
+        if self.reranker is not None:
+            results = self._rerank(query, results)
+            timings["rerank"] = (time.perf_counter() - t2) * 1000
+        timings["total"] = (time.perf_counter() - t0) * 1000
+        return SearchResult(results=results[:top_k], timings_ms=timings, top_score=top)
+
+    def _rerank(self, query: str, hits: list[RetrievedChunk]) -> list[RetrievedChunk]:
+        if not hits:
+            return hits
+        # Đưa kèm heading_path như lúc embed (Chunk.embed_text) để cross-encoder có ngữ cảnh mục.
+        texts = [
+            (" > ".join(h.heading_path) + "\n\n" + h.text) if h.heading_path else h.text
+            for h in hits
+        ]
+        scores = self.reranker.rerank(query, texts)
+        ranked = sorted(zip(scores, range(len(hits)), hits, strict=True), key=lambda x: (-x[0], x[1]))
+        return [replace(h, rerank=s) for s, _, h in ranked]

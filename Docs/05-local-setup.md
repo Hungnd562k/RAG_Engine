@@ -86,6 +86,14 @@ docker compose exec ollama ollama ps      # cột PROCESSOR = "100% GPU" sau khi
 ```
 Với 4 GB VRAM (đã đo ở M3): `bge-m3` và `qwen2.5:3b-instruct` **không cùng vừa** GPU → Ollama nạp/đẩy model liên tục (embed 2–6 s). Cấu hình khuyến nghị: `RAG_EMBED_NUM_GPU=0` (embed trên CPU, ~50 ms/query) để LLM dùng GPU (76% GPU với `RAG_LLM_NUM_CTX=4096`). Kiểm tra bằng `docker compose exec ollama ollama ps`: `bge-m3` = `100% CPU`, `qwen2.5` phần lớn GPU. `qwen2.5:7b-instruct` (~4.7 GB) sẽ bị offload nhiều sang CPU.
 
+**Reranker (M6a, tùy chọn):** service `reranker` (TEI) chỉ đáng bật khi có GPU (bản CPU mất ~12 s cho mỗi câu hỏi).
+```bash
+docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d reranker   # lần đầu tải ~2.2 GB model, warm-up vài chục giây
+curl -s localhost:8081/health && echo ok
+RAG_RERANK_ENABLED=true uv run rag health                                       # dòng "Reranker OK"
+```
+Với 4 GB VRAM, reranker chiếm ~2.4 GB nên `qwen2.5:3b` bị đẩy phần lớn sang CPU (generate chậm khoảng 2.5 lần). `search` không bị ảnh hưởng vì không dùng LLM. Xem [ADR-0011](adr/0011-reranker-tei-service.md).
+
 Phương án thay thế: cài Ollama native trên host (dùng GPU trực tiếp), tắt service `ollama` trong compose, giữ `RAG_OLLAMA_URL=http://localhost:11434`.
 
 ## 4. `.env.example`
@@ -104,6 +112,11 @@ RAG_CHUNK_SIZE=512
 RAG_CHUNK_OVERLAP=64
 RAG_TOP_K=5
 RAG_MIN_SCORE=0.50
+# auto = dense khi bật rerank, hybrid khi tắt
+RAG_SEARCH_MODE=auto
+RAG_HYBRID_ALPHA=0.15
+# Bật khi service reranker (GPU) đang chạy
+RAG_RERANK_ENABLED=false
 RAG_CONTEXT_MAX_CHARS=8000
 RAG_LOG_LEVEL=INFO
 ```
