@@ -13,7 +13,7 @@ CLI và API là hai lớp mỏng gọi cùng một engine (`build_engine(setting
 | `rag search "<q>" [--top-k N] [--source PREFIX] [--min-score X] [--json]` | Tìm kiếm ngữ nghĩa | M2 |
 | `rag ask "<q>" [--top-k N] [--source PREFIX] [--min-score X] [--show-context] [--json]` | Hỏi đáp có trích dẫn | M3 |
 | `rag serve [--host 127.0.0.1] [--port 8000] [--reload]` | Chạy FastAPI | M4 |
-| `rag eval <golden.yaml> [--top-k N] [--out FILE]` | Đánh giá retrieval | M5 |
+| `rag eval <golden.yaml>... [--top-k N] [--with-answer] [--all] [--out FILE]` | Đánh giá retrieval (hit@k, MRR, chặn OOS, latency); `--with-answer` chấm thêm câu trả lời và trích dẫn | M5 |
 
 Quy ước: `--json` in kết quả cùng schema với API để dễ so sánh/scripting. Exit code ≠ 0 khi lỗi hạ tầng.
 

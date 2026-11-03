@@ -9,7 +9,7 @@ Mỗi milestone nhỏ, chạy được, có **Definition of Done (DoD)** kiểm 
 | M2 | Retrieval (`rag search`) | ✅ Done (2026-11-02) |
 | M3 | Generation có trích dẫn (`rag ask`) | ✅ Done (2026-11-02) |
 | M4 | REST API | ✅ Done (2026-11-02) |
-| M5 | Evaluation & Tests | ⬜ Todo |
+| M5 | Evaluation & Tests | ✅ Done (2026-11-03) |
 | M6+ | Mở rộng | 💤 Backlog |
 
 ---
@@ -167,6 +167,13 @@ uv run rag eval eval/golden.yaml
 # hit@1=0.70 hit@3=0.85 hit@5=0.90 MRR=0.78 search_p50=12ms
 ```
 - hit@5 ≥ 0.8 (theo [00-vision-and-scope.md](00-vision-and-scope.md)).
+
+**Kết quả (2026-11-03)**
+- `uv run pytest -m "not integration"`: 43 passed trong ~0.5 s. `uv run pytest -m integration`: 4 passed trong ~34 s. Integration test chấm theo ngưỡng (hit@5, chặn OOS) thay vì đòi đúng từng câu.
+- `rag eval eval/golden.yaml` (19 câu trong phạm vi + 6 OOS): hit@1 = hit@3 = hit@5 = MRR = **1.00**, OOS block 6/6, search p50 4 ms / p95 6 ms. Bộ đối chứng E-Wallet riêng tư: hit@5 0.90. → **hit@5 ≥ 0.8 đạt.**
+- `--with-answer`: answer_ok 0.947, citation_ok 1.00 (samples); 0.95 / 0.90 (E-Wallet).
+- Tinh chỉnh: giữ chunk 512/64 và `min_score` 0.50. Đã thử hai biến thể prompt, cả hai đều kém hơn nên giữ prompt M3. Chi tiết ở [06 §6](06-evaluation-and-testing.md#6-baseline).
+- Phát hiện chuyển sang M6: khi retrieval trượt, 3B bịa con số (R11 trong [07](07-risks-and-open-questions.md)). Đây là lý do nâng ưu tiên cho hybrid search/reranker và hậu kiểm con số trong câu trả lời.
 
 ---
 
