@@ -1,4 +1,7 @@
-# Golden set cho retrieval (Docs/06-evaluation-and-testing.md). Mở rộng lên ≥ 20 câu ở M5.
+# Golden set cho bộ samples/ (Docs/06-evaluation-and-testing.md). Chạy: uv run rag eval eval/golden.yaml
+# expected_sources khớp chính xác hoặc theo hậu tố đường dẫn; expected_heading khớp một phần (không phân biệt hoa thường).
+
+# --- Truy vấn trực tiếp ---
 - id: q01
   question: "Nhân viên được nghỉ phép bao nhiêu ngày mỗi năm?"
   expected_sources: ["samples/hr-policy.md"]
@@ -14,20 +17,105 @@
   expected_sources: ["samples/expense-policy.md"]
   expected_heading: "Định mức công tác trong nước"
   answer_contains: ["1.200.000"]
+- id: q06
+  question: "Gửi ô tô ở tầng hầm mất bao nhiêu tiền?"
+  expected_sources: ["samples/office-notes.txt"]
+  answer_contains: ["1.500.000"]
+- id: q08
+  question: "Thời gian thử việc của chuyên viên là bao lâu?"
+  expected_sources: ["samples/onboarding.md"]
+  expected_heading: "Thời gian thử việc"
+  answer_contains: ["2 tháng"]
+- id: q09
+  question: "Làm thêm giờ vào ngày lễ được tính bao nhiêu phần trăm lương?"
+  expected_sources: ["samples/hr-policy.md"]
+  expected_heading: "Thời gian làm việc"
+  answer_contains: ["300%"]
+- id: q10
+  question: "Phòng họp nào chứa được 20 người?"
+  expected_sources: ["samples/office-notes.txt"]
+  answer_contains: ["Đại Dương"]
+- id: q11
+  question: "Thưởng tháng lương thứ 13 được chi trả khi nào?"
+  expected_sources: ["samples/hr-policy.md"]
+  expected_heading: "Thưởng và tăng lương"
+  answer_contains: ["Tết"]
+
+# --- Diễn đạt khác tài liệu (paraphrase) ---
+- id: q12
+  question: "Bao lâu thì phải đổi mật khẩu một lần?"
+  expected_sources: ["samples/it-security.md"]
+  expected_heading: "Mật khẩu"
+  answer_contains: ["90 ngày"]
+- id: q13
+  question: "Đi taxi khi công tác có được công ty trả tiền không?"
+  expected_sources: ["samples/expense-policy.md"]
+  expected_heading: "Định mức công tác trong nước"
+  answer_contains: ["hóa đơn"]
+- id: q14
+  question: "Dev mới vào được cấp máy tính bao nhiêu RAM?"
+  expected_sources: ["samples/onboarding.md"]
+  expected_heading: "Cấp phát thiết bị"
+  answer_contains: ["32 GB"]
+- id: q15
+  question: "Lỡ làm mất laptop thì phải báo cho ai?"
+  expected_sources: ["samples/it-security.md"]
+  expected_heading: "Báo cáo sự cố bảo mật"
+  answer_contains: ["Security"]
+- id: q16
+  question: "Nộp hồ sơ hoàn ứng muộn quá bao lâu thì không được giải quyết?"
+  expected_sources: ["samples/expense-policy.md"]
+  expected_heading: "Thủ tục hoàn ứng"
+  answer_contains: ["30 ngày"]
+
+# --- Chéo ngôn ngữ ---
 - id: q04
-  question: "Làm việc từ nước ngoài được tối đa bao nhiêu ngày?"   # cross-lingual: hỏi VI, tài liệu EN
+  question: "Làm việc từ nước ngoài được tối đa bao nhiêu ngày?"   # hỏi VI, tài liệu EN
   expected_sources: ["samples/remote-work-policy.md"]
   expected_heading: "Working abroad"
   answer_contains: ["30"]
+- id: q17
+  question: "Gói Pro của StarSync giá bao nhiêu một tháng?"        # hỏi VI, tài liệu EN
+  expected_sources: ["samples/product-faq.md"]
+  expected_heading: "Pricing plans"
+  answer_contains: ["99,000"]
+- id: q18
+  question: "Phụ cấp internet hằng tháng khi làm việc từ xa là bao nhiêu?"
+  expected_sources: ["samples/remote-work-policy.md"]
+  expected_heading: "Equipment and allowance"
+  answer_contains: ["200,000"]
 - id: q05
   question: "How long are deleted files kept on the Business plan?"
   expected_sources: ["samples/product-faq.md"]
   expected_heading: "How do I restore a deleted file?"
   answer_contains: ["180"]
-- id: q06
-  question: "Gửi ô tô ở tầng hầm mất bao nhiêu tiền?"
-  expected_sources: ["samples/office-notes.txt"]
-  answer_contains: ["1.500.000"]
+- id: q19
+  question: "Is SMS allowed as a second factor for 2FA?"            # hỏi EN, tài liệu VI
+  expected_sources: ["samples/it-security.md"]
+  expected_heading: "Xác thực hai yếu tố"
+  answer_contains: ["SMS"]
+- id: q20
+  question: "How many days of annual leave do full-time employees get?"
+  expected_sources: ["samples/hr-policy.md"]
+  expected_heading: "Nghỉ phép năm"
+  answer_contains: ["12"]
+
+# --- Ngoài phạm vi: kỳ vọng bị chặn bởi min_score, không gọi LLM ---
 - id: q07
   question: "Giá bitcoin hôm nay là bao nhiêu?"
+  out_of_scope: true
+- id: o02
+  question: "Thời tiết Hà Nội ngày mai thế nào?"
+  out_of_scope: true
+- id: o03
+  question: "Công thức nấu phở bò"
+  out_of_scope: true
+- id: o04
+  question: "Who won the 2022 World Cup?"
+  out_of_scope: true
+- id: o05
+  question: "Cách thay dầu xe máy"          # trùng từ "xe máy" với ghi chú bãi xe
+  out_of_scope: true
+- id: o06
+  question: "Explain quantum entanglement"
   out_of_scope: true

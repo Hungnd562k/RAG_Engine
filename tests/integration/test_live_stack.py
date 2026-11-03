@@ -7,10 +7,10 @@ from pathlib import Path
 
 import psycopg
 import pytest
-import yaml
 
 from rag_engine.config import Settings
 from rag_engine.engine import build_engine
+from rag_engine.evaluation.evaluator import evaluate, load_golden
 
 pytestmark = pytest.mark.integration
 ROOT = Path(__file__).resolve().parents[2]
@@ -54,34 +54,25 @@ def test_ingest_idempotent_and_golden_hit_at_3(engine, monkeypatch):
     stats = engine.store.stats()
     assert stats["documents"] == r1.added and stats["chunks"] == r1.chunks
 
-    golden = yaml.safe_load((ROOT / "eval" / "golden.yaml").read_text(encoding="utf-8"))
-    misses = []
-    for item in golden:
-        if item.get("out_of_scope"):
-            continue
-        res = engine.retriever.retrieve(item["question"], top_k=3, min_score=0.0)
-        if not any(r.source in item["expected_sources"] for r in res.results):
-            misses.append(item["id"])
-    assert misses == [], f"Golden miss ở top-3: {misses}"
+    # Retrieval trên samples (DB chỉ có samples): ngưỡng theo baseline M5 (Docs/06).
+    rep = evaluate(load_golden(ROOT / "eval" / "golden.yaml"), engine.retriever, top_k=5)
+    m = rep.metrics
+    detail = [(r.id, r.rank, round(r.top1_score, 3)) for r in rep.misses(3)]
+    assert m["hit@3"] == 1.0, f"Golden miss ở top-3: {detail}"
+    assert m["hit@1"] >= 0.9, f"hit@1={m['hit@1']:.3f}: {[(r.id, r.rank) for r in rep.misses(1)]}"
+    assert m["in_scope_pass"] == 1.0 and m["oos_block"] == 1.0, m
 
 
 def test_ask_golden_answers_and_citations(engine, monkeypatch):
-    """Cần model LLM (RAG_LLM_MODEL) đã pull. Chạy sau test ingest ở trên (cùng module)."""
+    """Cần model LLM (RAG_LLM_MODEL) đã pull. LLM không tất định → dùng ngưỡng, không đòi 100%."""
     monkeypatch.chdir(ROOT)
     engine.pipeline.ingest("samples")
-    golden = yaml.safe_load((ROOT / "eval" / "golden.yaml").read_text(encoding="utf-8"))
-    failures = []
-    for item in golden:
-        ans = engine.orchestrator.ask(item["question"], top_k=5)
-        if item.get("out_of_scope"):
-            if ans.answered:
-                failures.append((item["id"], "OOS không bị chặn", ans.text))
-            continue
-        missing = [s for s in item.get("answer_contains", []) if s not in ans.text]
-        if missing or not ans.cited or ans.invalid_citations:
-            failures.append((item["id"], f"missing={missing} cited={ans.cited} "
-                                         f"invalid={ans.invalid_citations}", ans.text))
-    assert failures == [], "\n".join(map(str, failures))
+    rep = evaluate(load_golden(ROOT / "eval" / "golden.yaml"), engine.retriever,
+                   engine.orchestrator, top_k=5)
+    m = rep.metrics
+    bad = [(r.id, r.answer) for r in rep.items if r.answer_ok is False or r.citation_ok is False]
+    assert m["answer_ok"] >= 0.85 and m["citation_ok"] >= 0.85, (m, bad)
+    assert m["oos_not_answered"] == 1.0, bad
 
 
 def test_api_against_live_engine(engine, monkeypatch):

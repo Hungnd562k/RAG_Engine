@@ -179,6 +179,109 @@ def ask(
     console.print(f"[dim]timings: {_fmt_ms(ans.timings_ms)}[/]")
 
 
+@app.command("eval")
+def eval_cmd(
+    golden: Annotated[list[Path], typer.Argument(help="Một hoặc nhiều file golden YAML")],
+    top_k: Annotated[int | None, typer.Option("--top-k", "-k")] = None,
+    with_answer: Annotated[bool, typer.Option(help="Chạy cả LLM, chấm answer_contains & trích dẫn")] = False,
+    out: Annotated[
+        Path | None, typer.Option(help="File JSON báo cáo (mặc định eval/report-<time>.json)")
+    ] = None,
+    show_all: Annotated[bool, typer.Option("--all", help="In mọi câu, không chỉ câu trượt")] = False,
+) -> None:
+    """Đánh giá retrieval trên golden set: hit@k, MRR, chặn câu ngoài phạm vi, độ trễ."""
+    import json
+    from datetime import datetime
+
+    from rag_engine.evaluation.evaluator import evaluate, load_golden
+
+    try:
+        items = load_golden(*golden)
+    except (OSError, ValueError) as exc:
+        console.print(f"[red]✗ Golden set lỗi:[/] {exc}")
+        raise typer.Exit(1) from exc
+    engine = _engine()
+    k = top_k or engine.settings.top_k
+    try:
+        with console.status(f"Đang đánh giá {len(items)} câu..."):
+            report = evaluate(items, engine.retriever, engine.orchestrator if with_answer else None, top_k=k)
+    except (EmbeddingError, LLMError) as exc:
+        console.print(f"[red]✗[/] {exc}")
+        raise typer.Exit(1) from exc
+    finally:
+        engine.close()
+
+    rows = (
+        report.items
+        if show_all
+        else [
+            r
+            for r in report.items
+            if (r.out_of_scope and not r.blocked)
+            or (not r.out_of_scope and (r.rank is None or r.rank > 1))
+            or r.answer_ok is False
+            or r.citation_ok is False
+        ]
+    )
+    if rows:
+        t = Table(title="Chi tiết" if show_all else "Câu cần xem (trượt rank 1 / OOS lọt / answer sai)")
+        for col in ("id", "rank", "top1", "top1 source", "answer"):
+            t.add_column(col, overflow="fold")
+        for r in rows:
+            rank = (
+                "OOS " + ("chặn" if r.blocked else "[red]LỌT[/]")
+                if r.out_of_scope
+                else str(r.rank or "[red]-[/]")
+            )
+            ans = (
+                ""
+                if r.answer is None
+                else (("✓ " if r.answer_ok else "✗ ") + " ".join(r.answer.split())[:80])
+            )
+            t.add_row(r.id, rank, f"{r.top1_score:.3f}", (r.top1_source or "").rsplit("/", 2)[-1], ans)
+        console.print(t)
+
+    m = report.metrics
+    console.print(
+        f"[bold]in-scope={report.n_in_scope} oos={report.n_oos} top_k={report.top_k} "
+        f"min_score={report.min_score}[/]"
+    )
+    keys = [
+        x
+        for x in (
+            "hit@1",
+            "hit@3",
+            "hit@5",
+            "mrr",
+            "in_scope_pass",
+            "oos_block",
+            "answer_ok",
+            "citation_ok",
+            "oos_not_answered",
+        )
+        if x in m
+    ]
+    console.print("  ".join(f"{x}={m[x]:.3f}" for x in keys))
+    if "min_in_scope_top1" in m and "max_oos_top1" in m:
+        console.print(
+            f"score: min in-scope top1={m['min_in_scope_top1']:.3f}  max OOS top1={m['max_oos_top1']:.3f}"
+        )
+    lat = [x for x in m if x.endswith("_ms")]
+    console.print("[dim]latency: " + "  ".join(f"{x[:-3]}={m[x]:.0f}ms" for x in lat) + "[/]")
+
+    out = out or Path("eval") / f"report-{datetime.now():%Y%m%d-%H%M%S}.json"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "golden": [str(g) for g in golden],
+        "config": engine.settings.model_dump(
+            include={"embed_model", "llm_model", "chunk_size", "chunk_overlap", "min_score", "top_k"}
+        ),
+        **report.to_dict(),
+    }
+    out.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    console.print(f"[dim]Báo cáo: {out}[/]")
+
+
 @app.command()
 def serve(
     host: Annotated[
