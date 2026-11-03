@@ -22,6 +22,16 @@ class VectorStore(Protocol):
         """Top-k chunk gần nhất theo cosine, score = cosine similarity, giảm dần."""
         ...
 
+    def hybrid_search(
+        self, query: str, vector: list[float], candidates: int, source_prefix: str | None = None
+    ) -> list[RetrievedChunk]:
+        """Hợp của top-`candidates` theo cosine và top-`candidates` theo full-text.
+
+        Mỗi chunk có score = cosine similarity và lexical = Σ idf(từ khớp) / Σ idf(mọi từ của
+        câu hỏi), idf = ln(1 + (N − df + 0.5) / (df + 0.5)) như BM25. Không theo thứ tự nào.
+        """
+        ...
+
     def stats(self) -> dict: ...
 
     def reset(self) -> None: ...

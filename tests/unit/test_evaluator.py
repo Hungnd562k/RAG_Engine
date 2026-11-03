@@ -21,7 +21,11 @@ class ScriptedRetriever:
         self.min_score = min_score
 
     def retrieve(self, query, top_k, source_prefix=None, min_score=None):
-        return SearchResult(self.table[query][:top_k], {"embed": 10.0, "search": 2.0, "total": 12.0})
+        hits = self.table[query][:top_k]
+        return SearchResult(
+            hits, {"embed": 10.0, "search": 2.0, "total": 12.0},
+            top_score=max((h.score for h in hits), default=None),
+        )
 
 
 def ch(source: str, score: float, heading: tuple[str, ...] = ()) -> RetrievedChunk:

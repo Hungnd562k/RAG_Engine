@@ -1,5 +1,7 @@
 import hashlib
 import math
+import re
+from dataclasses import replace
 
 import pytest
 
@@ -53,6 +55,21 @@ class InMemoryStore:
                 hits.append(RetrievedChunk(i * 1000 + c.index, doc.source, c.text,
                                            c.heading_path, score))
         return sorted(hits, key=lambda h: -h.score)[:top_k]
+
+    def hybrid_search(self, query, vector, candidates, source_prefix=None) -> list[RetrievedChunk]:
+        """Giả lập hybrid_search: coverage IDF trên tập từ (\\w và dấu chấm), không phân biệt hoa thường."""
+        tok = lambda t: set(re.findall(r"[\w.]+", t.lower()))  # noqa: E731
+        hits = self.search(vector, 10**9, source_prefix)
+        all_hits = self.search(vector, 10**9)
+        n = len(all_hits)
+        terms = tok(query)
+        idf = {t: math.log(1 + (n - df + 0.5) / (df + 0.5))
+               for t in terms for df in [sum(t in tok(h.text) for h in all_hits)]}
+        total = sum(idf.values()) or 1.0
+        scored = [replace(h, lexical=sum(idf[t] for t in terms & tok(h.text)) / total) for h in hits]
+        dense = scored[:candidates]
+        lex = sorted((h for h in scored if h.lexical), key=lambda h: -h.lexical)[:candidates]
+        return list({h.chunk_id: h for h in dense + lex}.values())
 
     def stats(self) -> dict:
         return {"documents": len(self.docs), "chunks": sum(len(c) for _, c, _ in self.docs.values())}

@@ -10,7 +10,7 @@ Mỗi milestone nhỏ, chạy được, có **Definition of Done (DoD)** kiểm 
 | M3 | Generation có trích dẫn (`rag ask`) | ✅ Done (2026-11-02) |
 | M4 | REST API | ✅ Done (2026-11-02) |
 | M5 | Evaluation & Tests | ✅ Done (2026-11-03) |
-| M6+ | Mở rộng | 💤 Backlog |
+| M6+ | Mở rộng (chia cụm M6a–M6e) | 🟡 M6a đang làm |
 
 ---
 
@@ -177,12 +177,21 @@ uv run rag eval eval/golden.yaml
 
 ---
 
-## M6+ — Backlog mở rộng (ưu tiên giảm dần)
-1. **Hybrid search**: `tsvector` + GIN, RRF fusion → đo lại bằng `rag eval`.
-2. **Reranker**: `bge-reranker-v2-m3` (cross-encoder) cho top-20 → top-5.
-3. **Loaders**: PDF (`pymupdf`), DOCX (`python-docx`), HTML.
-4. **Streaming** cho `/ask` (SSE) và CLI.
-5. **Collections / namespace**, metadata filter tổng quát.
-6. **Ingest bất đồng bộ** (job queue), xử lý thư mục lớn.
-7. **Answer evaluation**: faithfulness/relevance bằng LLM-as-judge.
-8. **Auth**, rate limit, đóng gói Docker cho app, CI.
+## M6+ — Mở rộng, chia thành cụm
+
+Mỗi cụm là một nhánh và một PR riêng. Mọi thay đổi về retrieval phải đo bằng `rag eval` và thêm một dòng vào [06 §6](06-evaluation-and-testing.md#6-baseline).
+
+| Cụm | Nội dung | Trạng thái |
+|-----|----------|-----------|
+| **M6a**: Chất lượng retrieval | 1. Hybrid search ✅<br>2. Reranker `bge-reranker-v2-m3` cho top-20 → top-5<br>3. Hậu kiểm con số trong câu trả lời phải có trong context (R11) | 🟡 Đang làm |
+| **M6b**: Đánh giá answer | LLM-as-judge (faithfulness/relevance) | ⬜ |
+| **M6c**: Nạp dữ liệu rộng hơn | Công cụ migration schema; loader PDF (`pymupdf`), DOCX, HTML; collections và lọc metadata; ingest bất đồng bộ | ⬜ |
+| **M6d**: Trải nghiệm hỏi đáp | Streaming `/ask` (SSE) và CLI; hội thoại nhiều lượt + viết lại câu hỏi (Q3) | ⬜ |
+| **M6e**: Vận hành | Auth, ACL (Q4), rate limit, image Docker cho app, CI | ⬜ |
+
+Cho agent (Claude) gọi `engine.search()` qua MCP `search_docs` **sau khi** retrieval ổn định và chính xác (sau M6a).
+
+### M6a.1 — Hybrid search (2026-11-03)
+- Cột `content_tsv` (`to_tsvector('simple', content)`, GIN). Gộp `cosine + 0.15 × độ phủ IDF`, không dùng RRF ([ADR-0010](adr/0010-hybrid-search-score-fusion.md)).
+- `RAG_SEARCH_MODE=dense|hybrid` (mặc định `hybrid`), `RAG_HYBRID_ALPHA`, `RAG_HYBRID_CANDIDATES`.
+- **DoD:** `RAG_SEARCH_MODE=hybrid uv run rag eval eval/golden.yaml` không kém dense. Bộ E-Wallet tốt hơn: hit@1 tăng từ 0.90 lên 0.95, e14 từ không có trong top 5 lên hạng 1. Tỉ lệ chặn OOS không đổi.

@@ -51,7 +51,10 @@ def build_engine(s: Settings) -> Engine:
     embedder = build_embedder(s)
     store = build_store(s)
     chunker = Chunker(s.chunk_size, s.chunk_overlap, s.chars_per_token, s.min_section_tokens)
-    retriever = Retriever(embedder, store, s.min_score)
+    retriever = Retriever(
+        embedder, store, s.min_score,
+        mode=s.search_mode, alpha=s.hybrid_alpha, candidates=s.hybrid_candidates,
+    )
     llm = OllamaLLM(
         base_url=s.ollama_url,
         model=s.llm_model,

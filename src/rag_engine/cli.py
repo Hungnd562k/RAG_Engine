@@ -244,7 +244,7 @@ def eval_cmd(
     m = report.metrics
     console.print(
         f"[bold]in-scope={report.n_in_scope} oos={report.n_oos} top_k={report.top_k} "
-        f"min_score={report.min_score}[/]"
+        f"min_score={report.min_score} mode={engine.settings.search_mode}[/]"
     )
     keys = [
         x
@@ -274,7 +274,10 @@ def eval_cmd(
     payload = {
         "golden": [str(g) for g in golden],
         "config": engine.settings.model_dump(
-            include={"embed_model", "llm_model", "chunk_size", "chunk_overlap", "min_score", "top_k"}
+            include={
+                "embed_model", "llm_model", "chunk_size", "chunk_overlap", "min_score", "top_k",
+                "search_mode", "hybrid_alpha", "hybrid_candidates",
+            }
         ),
         **report.to_dict(),
     }

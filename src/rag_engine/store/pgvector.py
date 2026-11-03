@@ -185,6 +185,60 @@ class PgVectorStore:
             for r in rows
         ]
 
+    def hybrid_search(
+        self, query: str, vector: list[float], candidates: int, source_prefix: str | None = None
+    ) -> list[RetrievedChunk]:
+        q = np.asarray(vector, dtype=np.float32)
+        # Từ của câu hỏi lấy bằng chính config 'simple' như cột content_tsv. df đếm qua GIN index.
+        # plainto_tsquery(t) dựng lại tsquery an toàn từ lexeme (không phải tự escape).
+        with self.pool.connection() as conn:
+            rows = conn.execute(
+                """
+                WITH terms AS (
+                    SELECT DISTINCT unnest(tsvector_to_array(to_tsvector('simple', %(t)s))) AS t
+                ),
+                n AS (SELECT count(*)::float8 AS n FROM chunks),
+                w AS (
+                    SELECT tq, ln(1 + (n.n - df + 0.5) / (df + 0.5)) AS idf
+                    FROM (
+                        SELECT plainto_tsquery('simple', t) AS tq,
+                               (SELECT count(*) FROM chunks
+                                 WHERE content_tsv @@ plainto_tsquery('simple', t)) AS df
+                        FROM terms
+                    ) x CROSS JOIN n
+                ),
+                total AS (SELECT sum(idf) AS s FROM w),
+                filtered AS (
+                    SELECT c.id, c.embedding, c.content_tsv
+                    FROM chunks c JOIN documents d ON d.id = c.document_id
+                    WHERE %(prefix)s::text IS NULL OR starts_with(d.source, %(prefix)s::text)
+                ),
+                dense AS (
+                    SELECT id FROM filtered ORDER BY embedding <=> %(q)s LIMIT %(k)s
+                ),
+                lex AS (
+                    SELECT f.id FROM filtered f JOIN w ON f.content_tsv @@ w.tq
+                    GROUP BY f.id ORDER BY sum(w.idf) DESC, f.id LIMIT %(k)s
+                ),
+                cand AS (SELECT id FROM dense UNION SELECT id FROM lex)
+                SELECT c.id, d.source, c.content, c.heading_path,
+                       1 - (c.embedding <=> %(q)s) AS score,
+                       coalesce((SELECT sum(w.idf) FROM w WHERE c.content_tsv @@ w.tq), 0)
+                         / nullif((SELECT s FROM total), 0) AS lexical
+                FROM cand
+                JOIN chunks c ON c.id = cand.id
+                JOIN documents d ON d.id = c.document_id
+                """,
+                {"t": query, "q": q, "prefix": source_prefix, "k": candidates},
+            ).fetchall()
+        return [
+            RetrievedChunk(
+                chunk_id=r[0], source=r[1], text=r[2], heading_path=tuple(r[3]),
+                score=float(r[4]), lexical=float(r[5] or 0.0),
+            )
+            for r in rows
+        ]
+
     # ---------- admin ----------
     def stats(self) -> dict:
         with self.pool.connection() as conn:

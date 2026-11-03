@@ -31,6 +31,14 @@ CREATE INDEX IF NOT EXISTS chunks_embedding_hnsw
 
 CREATE INDEX IF NOT EXISTS chunks_document_id_idx ON chunks(document_id);
 
+-- M6a hybrid search: full-text với config 'simple' (Postgres không có từ điển tiếng Việt;
+-- 'simple' giữ nguyên dấu và mã định danh như `recon.daily`, `RAG_MIN_SCORE`).
+-- ADD COLUMN IF NOT EXISTS → DB cũ tự nâng cấp, không cần re-embed.
+ALTER TABLE chunks ADD COLUMN IF NOT EXISTS content_tsv tsvector
+    GENERATED ALWAYS AS (to_tsvector('simple', content)) STORED;
+
+CREATE INDEX IF NOT EXISTS chunks_content_tsv_gin ON chunks USING gin (content_tsv);
+
 CREATE TABLE IF NOT EXISTS engine_meta (
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL
