@@ -1,4 +1,5 @@
 from functools import lru_cache
+from typing import Literal
 
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -32,6 +33,15 @@ class Settings(BaseSettings):
     top_k: int = Field(5, gt=0)
     min_score: float = Field(0.50, ge=-1.0, le=1.0)
     hnsw_ef_search: int = Field(40, gt=0)
+    search_mode: Literal["dense", "hybrid"] = Field(
+        "hybrid", description="dense = chỉ vector; hybrid = cosine + hybrid_alpha × độ phủ từ khóa"
+    )
+    hybrid_alpha: float = Field(
+        0.15, ge=0.0, description="Trọng số độ phủ từ khóa (IDF, 0–1) cộng vào cosine khi xếp hạng"
+    )
+    hybrid_candidates: int = Field(
+        20, gt=0, description="Số ứng viên lấy từ mỗi nhánh (dense, full-text) trước khi gộp"
+    )
     context_max_chars: int = Field(8000, gt=0, description="Budget context; giữ dưới ~num_ctx*2.5 ký tự")
 
     log_level: str = "INFO"

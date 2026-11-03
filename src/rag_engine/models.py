@@ -33,6 +33,8 @@ class RetrievedChunk:
     text: str
     heading_path: tuple[str, ...]
     score: float  # cosine similarity, 1 = giống nhất
+    # Chỉ có ở hybrid search: tỉ lệ IDF của các từ trong câu hỏi mà chunk khớp (0–1).
+    lexical: float | None = None
 
 
 @dataclass
@@ -50,6 +52,9 @@ class IngestReport:
 class SearchResult:
     results: list[RetrievedChunk]
     timings_ms: dict[str, float]
+    # Cosine cao nhất của nhánh dense — điểm dùng để chặn câu ngoài phạm vi (so với min_score).
+    # Ở chế độ hybrid, results[0] có thể là chunk khớp từ khóa với cosine thấp hơn.
+    top_score: float | None = None
 
 
 @dataclass

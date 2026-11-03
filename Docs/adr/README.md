@@ -14,3 +14,4 @@ Trạng thái: `Proposed` → `Accepted` → (`Deprecated` | `Superseded by NNNN
 | [0007](0007-llm-ollama-qwen2-5.md) | LLM generation qua Ollama, mặc định Qwen2.5 7B Instruct | Accepted | 2026-11-02 |
 | [0008](0008-local-infra-docker-compose.md) | Hạ tầng local bằng docker compose, app chạy trên host | Accepted | 2026-11-02 |
 | [0009](0009-interfaces-cli-and-fastapi.md) | Giao diện CLI (Typer) + REST API (FastAPI) | Accepted | 2026-11-02 |
+| [0010](0010-hybrid-search-score-fusion.md) | Hybrid search gộp theo điểm (cosine + α × độ phủ IDF), không dùng RRF | Accepted | 2026-11-03 |

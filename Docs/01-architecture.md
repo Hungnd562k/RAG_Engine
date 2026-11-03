@@ -234,6 +234,9 @@ Phụ thuộc chỉ đi một chiều: `cli`/`api` → `orchestrator`/`pipeline`
 | `RAG_TOP_K` | `5` | |
 | `RAG_MIN_SCORE` | `0.50` | Ngưỡng cosine, đã đo trên samples ([Q6](07-risks-and-open-questions.md#q6--ngưỡng-min_score)) |
 | `RAG_HNSW_EF_SEARCH` | `40` | Tăng để recall cao hơn |
+| `RAG_SEARCH_MODE` | `hybrid` | `dense` = chỉ vector; `hybrid` = vector + full-text ([ADR-0010](adr/0010-hybrid-search-score-fusion.md)) |
+| `RAG_HYBRID_ALPHA` | `0.15` | Trọng số độ phủ từ khóa (IDF, 0–1) cộng vào cosine; đo lại khi đổi embed model |
+| `RAG_HYBRID_CANDIDATES` | `20` | Số ứng viên lấy từ mỗi nhánh (cosine, full-text) trước khi gộp |
 | `RAG_CONTEXT_MAX_CHARS` | `8000` | Budget context đưa vào prompt; phải vừa `RAG_LLM_NUM_CTX` |
 | `RAG_LOG_LEVEL` | `INFO` | |
 
@@ -273,7 +276,7 @@ Prompt **cố ý không** có quy tắc "nếu không biết thì nói không t�
 Lưu ý `num_ctx`: nếu prompt vượt `RAG_LLM_NUM_CTX`, Ollama âm thầm cắt phần **đầu** prompt (mất system prompt) → giữ `RAG_CONTEXT_MAX_CHARS` ≲ `num_ctx × 2` ký tự.
 
 ## 9. Điểm mở rộng (M6+)
-- **Hybrid search:** thêm cột `tsvector` + GIN index, kết hợp với vector bằng Reciprocal Rank Fusion trong `Retriever`.
+- **Hybrid search:** ✅ M6a: cột `content_tsv` + GIN index, gộp `cosine + α × độ phủ IDF` (không dùng RRF, xem [ADR-0010](adr/0010-hybrid-search-score-fusion.md)).
 - **Reranker:** bước `Reranker` (vd. `bge-reranker-v2-m3`) giữa Retriever và PromptBuilder.
 - **Loaders mới:** đăng ký theo đuôi file (`.pdf`, `.docx`, `.html`).
 - **Collections:** thêm cột `collection` để tách namespace.

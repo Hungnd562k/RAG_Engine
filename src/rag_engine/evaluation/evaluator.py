@@ -3,8 +3,9 @@
 Metrics:
 - hit@k: tỉ lệ câu trong phạm vi có ít nhất 1 chunk liên quan trong top-k.
 - MRR: trung bình 1/rank của chunk liên quan đầu tiên (0 nếu không có trong top-k).
-- in_scope_pass: tỉ lệ câu trong phạm vi có top-1 score ≥ min_score (không bị chặn nhầm).
-- oos_block: tỉ lệ câu ngoài phạm vi bị chặn (top-1 score < min_score).
+- in_scope_pass: tỉ lệ câu trong phạm vi có top_score ≥ min_score (không bị chặn nhầm).
+  top_score = cosine dense cao nhất (SearchResult.top_score), kể cả ở chế độ hybrid.
+- oos_block: tỉ lệ câu ngoài phạm vi bị chặn (top_score < min_score).
 - Với --with-answer: answer_contains, tỉ lệ có trích dẫn hợp lệ, OOS trả answered=false.
 """
 
@@ -96,7 +97,7 @@ class ItemResult:
     rank: int | None  # thứ hạng chunk liên quan đầu tiên (1-based), None nếu không có trong top-k
     top1_score: float
     top1_source: str | None
-    blocked: bool  # top-1 < min_score → engine trả "không tìm thấy"
+    blocked: bool  # top_score < min_score → engine trả "không tìm thấy"
     embed_ms: float
     search_ms: float
     answer: str | None = None
@@ -144,7 +145,7 @@ def evaluate(
         res = retriever.retrieve(it.question, depth, min_score=-1.0)
         hits = res.results
         rank = next((i for i, h in enumerate(hits, 1) if is_relevant(h, it)), None)
-        top1 = hits[0].score if hits else -1.0
+        top1 = res.top_score if res.top_score is not None else -1.0
         r = ItemResult(
             id=it.id,
             question=it.question,

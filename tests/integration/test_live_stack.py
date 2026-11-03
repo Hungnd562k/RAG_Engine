@@ -63,6 +63,25 @@ def test_ingest_idempotent_and_golden_hit_at_3(engine, monkeypatch):
     assert m["in_scope_pass"] == 1.0 and m["oos_block"] == 1.0, m
 
 
+def test_hybrid_search_sql_on_live_db(engine, monkeypatch):
+    """SQL của hybrid_search chạy trên Postgres thật: lexical ∈ [0, 1], từ hiếm có trọng số cao."""
+    monkeypatch.chdir(ROOT)
+    engine.pipeline.ingest("samples")  # idempotent, không phụ thuộc thứ tự test
+    q = "VPN"  # chỉ xuất hiện ở tài liệu an toàn thông tin
+    vec = engine.embedder.embed([q])[0]
+    cands = engine.store.hybrid_search(q, vec, candidates=5)
+    assert cands and all(0.0 <= (h.lexical or 0.0) <= 1.0 + 1e-9 for h in cands)
+    best = max(cands, key=lambda h: h.lexical or 0.0)
+    assert best.lexical == pytest.approx(1.0) and "vpn" in best.text.lower()
+    # Câu chỉ toàn ký tự không phải chữ → không có từ nào, không lỗi SQL, lexical = 0
+    assert all(h.lexical == 0.0 for h in engine.store.hybrid_search("?!", vec, candidates=3))
+    # source_prefix áp dụng cho cả hai nhánh
+    assert all(
+        h.source.startswith("samples/it")
+        for h in engine.store.hybrid_search(q, vec, candidates=5, source_prefix="samples/it")
+    )
+
+
 def test_ask_golden_answers_and_citations(engine, monkeypatch):
     """Cần model LLM (RAG_LLM_MODEL) đã pull. LLM không tất định → dùng ngưỡng, không đòi 100%."""
     monkeypatch.chdir(ROOT)

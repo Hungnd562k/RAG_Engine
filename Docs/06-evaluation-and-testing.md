@@ -55,6 +55,11 @@ Cách chạy: `uv run rag eval eval/golden.yaml [--with-answer]`. Báo cáo JSON
 | 2026-11-02 (sơ bộ, M2) | 6 câu + 8 OOS, script tạm | bge-m3, chunk=512, overlap=64, min_score=0.50, TXT tách đoạn | 1.00 | 1.00 | 1.00 | 1.00 | 8/8 | ~3 ms |
 | **2026-11-03 (M5, chính thức)** | `eval/golden.yaml`: 19 + 6 OOS | như trên, top_k=5 | **1.00** | **1.00** | **1.00** | **1.00** | **6/6** | 4 / 6 ms (embed p50 45 ms) |
 | 2026-11-03 (M5, đối chứng) | E-Wallet (riêng tư): 20 + 4 OOS | như trên | 0.90 | 0.90 | 0.90 | 0.90 | 3/4 | 5 / 6 ms |
+| 2026-11-03 (M6a, thử, **loại**) | samples / E-Wallet | hybrid RRF (k=60), `ts_rank_cd` | 0.737 / 0.90 | 0.895 / 0.95 | 0.947 / 0.95 | 0.820 / 0.925 | 6/6 / 3/4 | 13 / 16 ms |
+| **2026-11-03 (M6a, hybrid)** | `eval/golden.yaml` | `RAG_SEARCH_MODE=hybrid`, α=0.15, candidates=20 ([ADR-0010](adr/0010-hybrid-search-score-fusion.md)) | **1.00** | **1.00** | **1.00** | **1.00** | **6/6** | ~13 ms |
+| **2026-11-03 (M6a, hybrid)** | E-Wallet | như trên | **0.95** | **0.95** | **0.95** | **0.95** | 3/4 | ~15 ms |
+
+Quét α (hybrid, cosine + α × độ phủ IDF), hit@1 samples / E-Wallet: 0 → 1.00 / 0.90 · 0.05 → 1.00 / 0.90 · 0.10 → 1.00 / 0.90 (e14 hạng 3) · **0.15 → 1.00 / 0.95** · 0.20 → 1.00 / 0.90 (e09 tụt xuống hạng 2) · 0.30 → 0.947 / 0.90 (q04 khác ngôn ngữ tụt xuống hạng 2). Vùng tốt hẹp (0.1–0.2) → đo lại khi golden set lớn hơn.
 
 Khoảng cách điểm top-1: trên `samples/`, câu trong phạm vi thấp nhất là 0.583 và câu OOS cao nhất là 0.479, nên ngưỡng 0.50 tách sạch hai nhóm. Trên E-Wallet, hai nhóm chồng lên nhau (trong phạm vi thấp nhất 0.551, OOS cao nhất 0.516).
 
@@ -65,6 +70,14 @@ Khoảng cách điểm top-1: trên `samples/`, câu trong phạm vi thấp nh�
 | 2026-11-03 | E-Wallet | M3 | 0.95 | 0.90 | 3/4 | ~2.4 s |
 | 2026-11-03 (thử, **loại**) | `eval/golden.yaml` / E-Wallet | Few-shot trung tính (không có số) | 0.947 / 0.90 | 0.895 / 0.85 | — | — |
 | 2026-11-03 (thử, **loại**) | E-Wallet | Quy tắc "[1] hoặc [2]" | 0.80 | — | — | — |
+| **2026-11-03 (M6a, hybrid)** | `eval/golden.yaml` | M3 | **1.00** | **1.00** | 6/6 | — |
+| **2026-11-03 (M6a, hybrid)** | E-Wallet | M3 | 0.95 | 0.90 | 3/4 | — |
+
+Ở M6a, e14 trả lời đúng "01:00" thay vì bịa giờ (R11). Các câu còn sai:
+- e06: diễn giải sai quy tắc thiết bị.
+- e14: trích `[6]` trong khi chỉ có 5 nguồn.
+- e17: in `[n.5]`, tức lỗi `[n.x]` xuất hiện cả với prompt M3, không chỉ với few-shot trung tính.
+- eo2: OOS lọt (0.516).
 
 - `answer_ok`: mọi chuỗi `answer_contains` đều xuất hiện trong câu trả lời. Trước khi so khớp, dấu phân cách số được chuẩn hóa (`1.200.000` ≡ `1,200,000` ≡ `1200000`).
 - `citation_ok`: có ít nhất một `[n]` hợp lệ và không có `[n]` nào trỏ ra ngoài context.

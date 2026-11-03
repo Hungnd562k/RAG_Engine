@@ -35,6 +35,12 @@ CREATE INDEX IF NOT EXISTS chunks_embedding_hnsw
 
 CREATE INDEX IF NOT EXISTS chunks_document_id_idx ON chunks(document_id);
 
+-- M6a hybrid search (ADR-0010): full-text config 'simple' (giữ dấu tiếng Việt và mã định danh).
+-- ADD COLUMN IF NOT EXISTS + cột sinh tự động → DB cũ tự nâng cấp, không cần re-embed.
+ALTER TABLE chunks ADD COLUMN IF NOT EXISTS content_tsv tsvector
+    GENERATED ALWAYS AS (to_tsvector('simple', content)) STORED;
+CREATE INDEX IF NOT EXISTS chunks_content_tsv_gin ON chunks USING gin (content_tsv);
+
 -- Metadata hệ thống: khóa model/dim đã dùng để phát hiện lệch cấu hình
 CREATE TABLE IF NOT EXISTS engine_meta (
     key   TEXT PRIMARY KEY,
@@ -59,6 +65,12 @@ LIMIT %(k)s;
 ```
 - `<=>` là cosine distance; `score = 1 - distance` (cosine similarity).
 - Lọc `min_score` ở tầng ứng dụng sau khi lấy top-k (giữ index được dùng).
+
+**Hybrid (mặc định, `RAG_SEARCH_MODE=hybrid`)** — `PgVectorStore.hybrid_search`, một truy vấn:
+1. Tách từ của câu hỏi bằng `to_tsvector('simple', q)`, đếm `df` của từng từ qua GIN index, `idf = ln(1 + (N − df + 0.5)/(df + 0.5))`.
+2. Ứng viên = top-20 theo cosine ∪ top-20 theo Σ idf các từ khớp.
+3. Mỗi ứng viên trả `score` (cosine) và `lexical` = Σ idf(từ khớp) / Σ idf(mọi từ của câu hỏi).
+4. `Retriever` xếp theo `cosine + α × lexical`. Câu hỏi bị chặn khi cosine cao nhất < `min_score`.
 
 ## 3. Chiến lược ingest idempotent
 
