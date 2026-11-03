@@ -35,6 +35,8 @@ class RetrievedChunk:
     score: float  # cosine similarity, 1 = giống nhất
     # Chỉ có ở hybrid search: tỉ lệ IDF của các từ trong câu hỏi mà chunk khớp (0–1).
     lexical: float | None = None
+    # Chỉ có khi bật reranker: điểm cross-encoder (bge-reranker-v2-m3 qua TEI, 0–1).
+    rerank: float | None = None
 
 
 @dataclass

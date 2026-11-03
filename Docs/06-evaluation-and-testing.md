@@ -58,6 +58,14 @@ Cách chạy: `uv run rag eval eval/golden.yaml [--with-answer]`. Báo cáo JSON
 | 2026-11-03 (M6a, thử, **loại**) | samples / E-Wallet | hybrid RRF (k=60), `ts_rank_cd` | 0.737 / 0.90 | 0.895 / 0.95 | 0.947 / 0.95 | 0.820 / 0.925 | 6/6 / 3/4 | 13 / 16 ms |
 | **2026-11-03 (M6a, hybrid)** | `eval/golden.yaml` | `RAG_SEARCH_MODE=hybrid`, α=0.15, candidates=20 ([ADR-0010](adr/0010-hybrid-search-score-fusion.md)) | **1.00** | **1.00** | **1.00** | **1.00** | **6/6** | ~13 ms |
 | **2026-11-03 (M6a, hybrid)** | E-Wallet | như trên | **0.95** | **0.95** | **0.95** | **0.95** | 3/4 | ~15 ms |
+| 2026-11-03 (M6a.2, hybrid + rerank 20) | E-Wallet* | hybrid → `bge-reranker-v2-m3` (TEI GPU) | 0.95 | 0.95 | 0.95 | 0.950 | 3/4 | 18 ms + rerank ~0.77 s |
+| 2026-11-03 (M6a.2, hybrid + rerank 40) | E-Wallet* | như trên, rerank toàn bộ hợp ứng viên | 0.95 | 1.00 | 1.00 | 0.963 | 3/4 | rerank ~1.7 s |
+| **2026-11-03 (M6a.2, dense + rerank 20)** | `eval/golden.yaml` | `RAG_RERANK_ENABLED=true`, `RAG_SEARCH_MODE=auto` → dense ([ADR-0011](adr/0011-reranker-tei-service.md)) | **1.00** | **1.00** | **1.00** | **1.00** | **6/6** | 6 ms + rerank ~0.5 s |
+| **2026-11-03 (M6a.2, dense + rerank 20)** | E-Wallet* | như trên | **0.95** | **1.00** | **1.00** | **0.967** | 3/4 | 7 ms + rerank ~0.7 s |
+
+\* Từ M6a.2, golden E-Wallet e09 bổ sung `chuan-hoa/B-bo-tai-lieu-chuan-hoa.md` (bảng thuật ngữ "QR động … hết hạn sau 15 phút" cũng chứa đáp án; reranker chọn chunk này lên hạng 1). Với golden đã sửa, hybrid không rerank vẫn là 0.95 / 0.95 / 0.95 / 0.950.
+
+Bản TEI chạy CPU: điểm rerank giống bản GPU nhưng mất ~12 s cho 20 ứng viên, nên không dùng.
 
 Quét α (hybrid, cosine + α × độ phủ IDF), hit@1 samples / E-Wallet: 0 → 1.00 / 0.90 · 0.05 → 1.00 / 0.90 · 0.10 → 1.00 / 0.90 (e14 hạng 3) · **0.15 → 1.00 / 0.95** · 0.20 → 1.00 / 0.90 (e09 tụt xuống hạng 2) · 0.30 → 0.947 / 0.90 (q04 khác ngôn ngữ tụt xuống hạng 2). Vùng tốt hẹp (0.1–0.2) → đo lại khi golden set lớn hơn.
 
@@ -72,6 +80,8 @@ Khoảng cách điểm top-1: trên `samples/`, câu trong phạm vi thấp nh�
 | 2026-11-03 (thử, **loại**) | E-Wallet | Quy tắc "[1] hoặc [2]" | 0.80 | — | — | — |
 | **2026-11-03 (M6a, hybrid)** | `eval/golden.yaml` | M3 | **1.00** | **1.00** | 6/6 | — |
 | **2026-11-03 (M6a, hybrid)** | E-Wallet | M3 | 0.95 | 0.90 | 3/4 | — |
+| **2026-11-03 (M6a.2, dense + rerank)** | `eval/golden.yaml` | M3 | **1.00** | **1.00** | 6/6 | ~3.4 s (LLM bị đẩy sang CPU) |
+| **2026-11-03 (M6a.2, dense + rerank)** | E-Wallet | M3 | **1.00** | **1.00** | 3/4 | ~6.6 s (LLM 74% CPU) |
 
 Ở M6a, e14 trả lời đúng "01:00" thay vì bịa giờ (R11). Các câu còn sai:
 - e06: diễn giải sai quy tắc thiết bị.

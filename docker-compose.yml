@@ -20,6 +20,16 @@ services:
     volumes: [ollama:/root/.ollama]
     # GPU: dùng thêm docker-compose.gpu.yml (cần nvidia-container-toolkit), xem Docs/05-local-setup.md
 
+  # Reranker cross-encoder (M6a, ADR-0011): HuggingFace Text Embeddings Inference, bản CPU.
+  # Ollama không có API rerank → chạy service riêng, app gọi POST /rerank.
+  reranker:
+    image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.8
+    # max-batch-tokens mặc định 16384 → warm-up trên CPU bị OOM (exit 137, RAM 22 GB).
+    command: ["--model-id", "BAAI/bge-reranker-v2-m3", "--auto-truncate", "--max-batch-tokens", "8192"]
+    ports: ["8081:80"]
+    volumes: [hf:/data]
+
 volumes:
   pgdata:
   ollama:
+  hf:

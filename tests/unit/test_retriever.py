@@ -100,3 +100,53 @@ def test_hybrid_rare_identifier_rises_with_memory_store(fake_embedder, memory_st
 def test_empty_query_rejected():
     with pytest.raises(ValueError):
         Retriever(StubEmbedder(), StubStore()).retrieve("  ", 5)
+
+
+# ---------- Reranker trong Retriever ----------
+class StubReranker:
+    """Điểm = số lần từ 'đúng' xuất hiện; ghi lại text nhận được."""
+
+    def __init__(self):
+        self.calls: list[tuple[str, list[str]]] = []
+
+    def rerank(self, query, texts):
+        self.calls.append((query, texts))
+        return [float(t.count("đúng")) for t in texts]
+
+
+def rct(cid: int, text: str, score: float = 0.9, heading=()) -> RetrievedChunk:
+    return RetrievedChunk(cid, f"docs/{cid}.md", text, tuple(heading), score)
+
+
+def test_rerank_reorders_fetches_candidates_and_truncates():
+    dense = [rct(1, "sai", 0.9), rct(2, "đúng đúng", 0.8), rct(3, "đúng", 0.7), rct(4, "sai", 0.6)]
+    store, rr = StubStore(dense=dense), StubReranker()
+    res = Retriever(StubEmbedder(), store, min_score=0.5, reranker=rr, rerank_candidates=4).retrieve("q", 2)
+    assert [h.chunk_id for h in res.results] == [2, 3]
+    assert [h.rerank for h in res.results] == [2.0, 1.0]
+    assert res.results[0].score == 0.8  # score vẫn là cosine
+    assert store.calls == [("dense", 4)]
+    assert "rerank" in res.timings_ms and res.top_score == 0.9
+
+
+def test_rerank_ties_keep_retrieval_order_and_sends_heading():
+    dense = [rct(1, "a", 0.9, ("H1", "H2")), rct(2, "b", 0.8)]
+    rr = StubReranker()
+    res = Retriever(StubEmbedder(), StubStore(dense=dense), reranker=rr).retrieve("q", 5)
+    assert [h.chunk_id for h in res.results] == [1, 2]
+    assert rr.calls[0][1] == ["H1 > H2\n\na", "b"]
+
+
+def test_rerank_not_called_when_query_blocked():
+    rr = StubReranker()
+    store = StubStore(hybrid=[rc(1, 0.3, 1.0)])
+    res = Retriever(StubEmbedder(), store, min_score=0.5, mode="hybrid", reranker=rr).retrieve("q", 5)
+    assert res.results == [] and rr.calls == []
+
+
+def test_settings_auto_mode_follows_rerank():
+    from rag_engine.config import Settings
+
+    assert Settings(search_mode="auto", rerank_enabled=False).effective_search_mode == "hybrid"
+    assert Settings(search_mode="auto", rerank_enabled=True).effective_search_mode == "dense"
+    assert Settings(search_mode="hybrid", rerank_enabled=True).effective_search_mode == "hybrid"

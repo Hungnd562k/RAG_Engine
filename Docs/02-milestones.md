@@ -183,7 +183,7 @@ Mỗi cụm là một nhánh và một PR riêng. Mọi thay đổi về retriev
 
 | Cụm | Nội dung | Trạng thái |
 |-----|----------|-----------|
-| **M6a**: Chất lượng retrieval | 1. Hybrid search ✅<br>2. Reranker `bge-reranker-v2-m3` cho top-20 → top-5<br>3. Hậu kiểm con số trong câu trả lời phải có trong context (R11) | 🟡 Đang làm |
+| **M6a**: Chất lượng retrieval | 1. Hybrid search ✅<br>2. Reranker `bge-reranker-v2-m3` cho top-20 → top-5 ✅<br>3. Hậu kiểm con số trong câu trả lời phải có trong context (R11) | 🟡 Đang làm |
 | **M6b**: Đánh giá answer | LLM-as-judge (faithfulness/relevance) | ⬜ |
 | **M6c**: Nạp dữ liệu rộng hơn | Công cụ migration schema; loader PDF (`pymupdf`), DOCX, HTML; collections và lọc metadata; ingest bất đồng bộ | ⬜ |
 | **M6d**: Trải nghiệm hỏi đáp | Streaming `/ask` (SSE) và CLI; hội thoại nhiều lượt + viết lại câu hỏi (Q3) | ⬜ |
@@ -195,3 +195,8 @@ Cho agent (Claude) gọi `engine.search()` qua MCP `search_docs` **sau khi** ret
 - Cột `content_tsv` (`to_tsvector('simple', content)`, GIN). Gộp `cosine + 0.15 × độ phủ IDF`, không dùng RRF ([ADR-0010](adr/0010-hybrid-search-score-fusion.md)).
 - `RAG_SEARCH_MODE=dense|hybrid` (mặc định `hybrid`), `RAG_HYBRID_ALPHA`, `RAG_HYBRID_CANDIDATES`.
 - **DoD:** `RAG_SEARCH_MODE=hybrid uv run rag eval eval/golden.yaml` không kém dense. Bộ E-Wallet tốt hơn: hit@1 tăng từ 0.90 lên 0.95, e14 từ không có trong top 5 lên hạng 1. Tỉ lệ chặn OOS không đổi.
+
+### M6a.2 — Reranker (2026-11-03)
+- Service `reranker` (TEI, `bge-reranker-v2-m3`). GPU qua `docker-compose.gpu.yml` (image `86-1.7`). `TEIReranker` tự chia batch 32 ([ADR-0011](adr/0011-reranker-tei-service.md)).
+- `RAG_RERANK_ENABLED` (mặc định `false`), `RAG_RERANK_CANDIDATES=20`. `RAG_SEARCH_MODE=auto`: dense khi bật rerank, hybrid khi tắt. `rag health` kiểm tra reranker. `rag eval` báo `rerank_p50/p95`.
+- **DoD:** `RAG_RERANK_ENABLED=true uv run rag eval eval/golden.yaml` không kém. Bộ E-Wallet: hit@5 tăng từ 0.95 lên 1.00 (e19 vào top 5), answer_ok và citation_ok đều đạt 1.00. Rerank p50 khoảng 0.5–0.7 s trên GPU.

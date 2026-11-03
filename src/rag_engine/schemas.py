@@ -34,13 +34,15 @@ class ChunkOut(BaseModel):
     chunk_id: int
     source: str
     heading_path: list[str]
-    score: float
+    score: float = Field(description="Cosine similarity")
+    lexical: float | None = Field(None, description="Độ phủ từ khóa IDF 0–1 (chỉ ở hybrid)")
+    rerank: float | None = Field(None, description="Điểm cross-encoder 0–1 (chỉ khi bật rerank)")
     text: str
 
     @classmethod
     def of(cls, c: RetrievedChunk) -> "ChunkOut":
         return cls(chunk_id=c.chunk_id, source=c.source, heading_path=list(c.heading_path),
-                   score=c.score, text=c.text)
+                   score=c.score, lexical=c.lexical, rerank=c.rerank, text=c.text)
 
 
 class SourceOut(ChunkOut):

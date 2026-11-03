@@ -33,18 +33,32 @@ class Settings(BaseSettings):
     top_k: int = Field(5, gt=0)
     min_score: float = Field(0.50, ge=-1.0, le=1.0)
     hnsw_ef_search: int = Field(40, gt=0)
-    search_mode: Literal["dense", "hybrid"] = Field(
-        "hybrid", description="dense = chỉ vector; hybrid = cosine + hybrid_alpha × độ phủ từ khóa"
+    search_mode: Literal["auto", "dense", "hybrid"] = Field(
+        "auto",
+        description="dense = chỉ vector; hybrid = cosine + hybrid_alpha × độ phủ từ khóa; "
+        "auto = dense khi bật rerank (reranker tự chọn lại tốt hơn), hybrid khi không (ADR-0011)",
     )
     hybrid_alpha: float = Field(
         0.15, ge=0.0, description="Trọng số độ phủ từ khóa (IDF, 0–1) cộng vào cosine khi xếp hạng"
     )
+    rerank_enabled: bool = Field(False, description="Bật bước rerank cross-encoder (cần service reranker)")
+    rerank_url: str = "http://localhost:8081"
+    rerank_candidates: int = Field(
+        20, gt=0, description="Số chunk đưa vào reranker; trả về top_k theo điểm rerank"
+    )
+    rerank_timeout_s: float = 60.0
     hybrid_candidates: int = Field(
         20, gt=0, description="Số ứng viên lấy từ mỗi nhánh (dense, full-text) trước khi gộp"
     )
     context_max_chars: int = Field(8000, gt=0, description="Budget context; giữ dưới ~num_ctx*2.5 ký tự")
 
     log_level: str = "INFO"
+
+    @property
+    def effective_search_mode(self) -> Literal["dense", "hybrid"]:
+        if self.search_mode != "auto":
+            return self.search_mode
+        return "dense" if self.rerank_enabled else "hybrid"
 
     @model_validator(mode="after")
     def _check_overlap(self) -> "Settings":

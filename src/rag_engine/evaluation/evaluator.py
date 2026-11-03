@@ -100,6 +100,7 @@ class ItemResult:
     blocked: bool  # top_score < min_score → engine trả "không tìm thấy"
     embed_ms: float
     search_ms: float
+    rerank_ms: float | None = None
     answer: str | None = None
     answered: bool | None = None
     answer_ok: bool | None = None  # chứa đủ answer_contains
@@ -156,6 +157,7 @@ def evaluate(
             blocked=top1 < threshold,
             embed_ms=res.timings_ms["embed"],
             search_ms=res.timings_ms["search"],
+            rerank_ms=res.timings_ms.get("rerank"),
         )
         if orchestrator is not None:
             ans = orchestrator.ask(it.question, top_k)
@@ -187,6 +189,10 @@ def evaluate(
              embed_p95_ms=percentile(embeds, 95),
              search_p50_ms=statistics.median(searches) if searches else 0.0,
              search_p95_ms=percentile(searches, 95))
+    reranks = [r.rerank_ms for r in results if r.rerank_ms is not None]
+    if reranks:
+        m["rerank_p50_ms"] = statistics.median(reranks)
+        m["rerank_p95_ms"] = percentile(reranks, 95)
     if orchestrator is not None:
         m["answer_ok"] = _ratio(sum(1 for r in ins if r.answer_ok), len(ins))
         m["citation_ok"] = _ratio(sum(1 for r in ins if r.citation_ok), len(ins))
