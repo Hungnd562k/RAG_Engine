@@ -108,3 +108,14 @@ Mode dense tái hiện đúng lỗi R11 ở e14 và check bắt được. `8:00`
 - **Prompt few-shot**: ví dụ mẫu bị nghi rò rỉ, vì khi retrieval trượt (E-Wallet e14, giờ chạy `recon.daily`) model trả lời "8:00 đến 17:00", trùng số trong ví dụ. Đã thử thay bằng ví dụ trung tính: model vẫn bịa ("8 giờ"), đồng thời phát sinh lỗi mới là in nguyên văn `[n.1]` / `[n 3]`. **Giữ prompt M3.** Gốc rễ là retrieval trượt, nên hướng xử lý nằm ở retrieval (hybrid/reranker, M6) và ở việc kiểm tra con số trong câu trả lời có xuất hiện trong context hay không (xem R11 trong [07](07-risks-and-open-questions.md)).
 
 Mỗi lần thay đổi chunking/model/ngưỡng/prompt: thêm một dòng mới vào các bảng trên để so sánh.
+
+### 6.4 Câu hỏi kiểu agent (MCP pilot)
+Agent hỏi bằng câu ngắn, dạng từ khóa, thường tiếng Anh (`"recon.daily job schedule"`, `"password minimum length"`). Bộ `eval/golden-agent.yaml` (14 + 2 OOS, cùng sự kiện với `golden.yaml`) và bộ E-Wallet riêng tư `eval/local/golden-ewallet-agent.yaml` (20 + 2 OOS) đo riêng kiểu câu này.
+
+| Ngày | Cấu hình | agent samples hit@1 / hit@5 / MRR | agent E-Wallet hit@1 / hit@5 / MRR | OOS block |
+|------|----------|-----------------------------------|------------------------------------|-----------|
+| **2026-11-09** | hybrid (mặc định) | 0.786 / **1.00** / 0.871 | 0.80 / **1.00** / 0.892 | 4/4 |
+| 2026-11-09 | dense + rerank 20 | **1.00** / 1.00 / 1.00 | 0.75 / 0.95 / 0.850 (a14 `recon.daily` ra ngoài top-5) | 4/4 |
+| 2026-11-09 | hybrid + rerank 20 | **1.00** / 1.00 / 1.00 | 0.75 / 1.00 / 0.867 | 4/4 |
+
+Câu kiểu agent làm hit@1 giảm khoảng 0.15–0.20 so với câu hỏi tự nhiên, nhưng hit@5 giữ 1.00 ở cấu hình mặc định. Agent đọc cả top-5 nên pilot giữ hybrid không rerank ([ADR-0012](adr/0012-mcp-search-docs-for-agents.md)). Trên golden cũ, hybrid + rerank làm mất e19 (E-Wallet 0.95 / 0.95), còn dense + rerank làm mất a14: chưa cấu hình nào thắng mọi bộ.

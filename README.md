@@ -13,4 +13,5 @@ uv sync && uv run rag health
 uv run rag ingest samples/
 uv run rag ask "Your question here"
 uv run rag serve        # REST API + Swagger UI at http://127.0.0.1:8000/docs
+uv run rag mcp          # MCP server (stdio) for Claude Code: search_docs, list_sources
 ```

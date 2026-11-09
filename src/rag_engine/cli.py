@@ -12,6 +12,7 @@ from rag_engine.embedding.ollama import EmbeddingError
 from rag_engine.engine import Engine, build_engine, build_store, health_checks
 from rag_engine.generation.prompt import format_source
 from rag_engine.llm.ollama import LLMError
+from rag_engine.rerank.tei import RerankError
 from rag_engine.schemas import AskResponse, SearchResponse
 from rag_engine.store.pgvector import EmbeddingConfigMismatch
 
@@ -113,7 +114,7 @@ def search(
         res = engine.retriever.retrieve(
             query, top_k or engine.settings.top_k, source_prefix=source, min_score=min_score
         )
-    except (ValueError, EmbeddingError) as exc:
+    except (ValueError, EmbeddingError, RerankError) as exc:
         console.print(f"[red]✗[/] {exc}")
         raise typer.Exit(1) from exc
     finally:
@@ -154,7 +155,7 @@ def ask(
             ans = engine.orchestrator.ask(
                 question, top_k or engine.settings.top_k, source_prefix=source, min_score=min_score
             )
-    except (ValueError, EmbeddingError, LLMError) as exc:
+    except (ValueError, EmbeddingError, LLMError, RerankError) as exc:
         console.print(f"[red]✗[/] {exc}")
         raise typer.Exit(1) from exc
     finally:
@@ -210,7 +211,7 @@ def eval_cmd(
     try:
         with console.status(f"Đang đánh giá {len(items)} câu..."):
             report = evaluate(items, engine.retriever, engine.orchestrator if with_answer else None, top_k=k)
-    except (EmbeddingError, LLMError) as exc:
+    except (EmbeddingError, LLMError, RerankError) as exc:
         console.print(f"[red]✗[/] {exc}")
         raise typer.Exit(1) from exc
     finally:
@@ -313,6 +314,23 @@ def serve(
 
     console.print(f"Swagger UI: [link]http://{host}:{port}/docs[/link]")
     uvicorn.run("rag_engine.api.main:create_app", factory=True, host=host, port=port, reload=reload)
+
+
+@app.command()
+def mcp(
+    docs_root: Annotated[
+        Path | None,
+        typer.Option(help="Thư mục gốc để quy đổi source tương đối (mặc định: thư mục hiện tại)"),
+    ] = None,
+) -> None:
+    """Chạy MCP server qua stdio cho agent (Claude): tool `search_docs`, `list_sources`."""
+    from rag_engine.mcp_server import EngineHolder, create_server
+
+    holder = EngineHolder()
+    try:
+        create_server(holder, docs_root).run("stdio")
+    finally:
+        holder.close()
 
 
 if __name__ == "__main__":

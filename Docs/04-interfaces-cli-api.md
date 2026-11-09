@@ -13,6 +13,7 @@ CLI và API là hai lớp mỏng gọi cùng một engine (`build_engine(setting
 | `rag search "<q>" [--top-k N] [--source PREFIX] [--min-score X] [--json]` | Tìm kiếm ngữ nghĩa | M2 |
 | `rag ask "<q>" [--top-k N] [--source PREFIX] [--min-score X] [--show-context] [--json]` | Hỏi đáp có trích dẫn | M3 |
 | `rag serve [--host 127.0.0.1] [--port 8000] [--reload]` | Chạy FastAPI | M4 |
+| `rag mcp [--docs-root DIR]` | MCP server (stdio) cho agent: `search_docs`, `list_sources` ([§3](#3-mcp-server-rag-mcp)) | MCP pilot |
 | `rag eval <golden.yaml>... [--top-k N] [--with-answer] [--all] [--out FILE]` | Đánh giá retrieval (hit@k, MRR, chặn OOS, latency); `--with-answer` chấm thêm câu trả lời và trích dẫn | M5 |
 
 `rag ask` in cảnh báo đỏ khi câu trả lời có con số không xuất hiện trong context hoặc câu hỏi (dấu hiệu bịa, R11). Câu trả lời vẫn được trả về, chỉ gắn cờ.
@@ -101,4 +102,23 @@ HTTP 200 nếu mọi thành phần bắt buộc OK (kể cả khi thiếu LLM �
 | 400 | Path không tồn tại, query không hợp lệ | `{"detail": "..."}` |
 | 409 | Model/dim embedding lệch dữ liệu đã lưu; hoặc đang có ingest khác chạy | `{"detail": "..."}` |
 | 422 | Sai schema request (vd. `query` rỗng, `top_k` ≤ 0 hoặc > 50) | chi tiết lỗi validate của FastAPI |
-| 503 | Postgres/Ollama không truy cập được, model chưa pull | `{"detail": "..."}` |
+| 503 | Postgres/Ollama/reranker không truy cập được, model chưa pull | `{"detail": "..."}` |
+
+## 3. MCP server (`rag mcp`)
+MCP server qua stdio cho agent (Claude Code) tra cứu tài liệu đã ingest. Chỉ đọc ([ADR-0012](adr/0012-mcp-search-docs-for-agents.md)).
+
+| Tool | Tham số | Trả về |
+|------|---------|--------|
+| `search_docs` | `query`, `top_k` (1–20, mặc định 5), `source_prefix` | Các chunk: `[n] <đường dẫn tuyệt đối> › heading`, `(score=… [rerank=…])`, cờ `[STALE]` (file đổi sau lần ingest) / `[MISSING]` (file đã xóa), nội dung chunk. Không có kết quả: thông báo kèm cosine cao nhất và gợi ý dùng grep |
+| `list_sources` | `prefix` | Danh sách file đã ingest, kèm đường dẫn tuyệt đối |
+
+- Server khởi động được khi Docker chưa chạy; tool báo lỗi rõ ràng (để agent chuyển sang grep) và thử kết nối lại ở lần gọi sau.
+- Source tương đối được quy đổi theo `--docs-root` (mặc định thư mục hiện tại, tức thư mục chạy `rag ingest`).
+- Retrieval dùng cùng cấu hình `.env` với CLI/API (`RAG_SEARCH_MODE`, `RAG_RERANK_ENABLED`, `RAG_MIN_SCORE`).
+
+Đăng ký với Claude Code (phạm vi user, dùng được ở mọi dự án):
+```bash
+claude mcp add -s user rag-docs -- uv run --directory /path/to/RAG_Engine rag mcp
+claude mcp list            # rag-docs: ✓ Connected
+```
+`--directory` vừa chọn môi trường uv vừa đặt thư mục làm việc, nên `.env` của RAG_Engine được đọc và source tương đối (`samples/...`) quy đổi đúng.
