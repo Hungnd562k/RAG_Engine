@@ -273,7 +273,7 @@ Trả lời câu hỏi trên, nhớ ghi trích dẫn [n] sau mỗi câu.
 
 Thiết kế hai lớp chống "bịa":
 1. **Retrieval gate** (Orchestrator): không chunk nào đạt `min_score` → trả `"Không tìm thấy thông tin trong tài liệu."`, **không gọi LLM**.
-2. **Prompt grounding**: chỉ dùng CONTEXT, bắt buộc trích dẫn; sau khi sinh, `extract_citations` tách `[n]` hợp lệ / không hợp lệ để CLI/API cảnh báo.
+2. **Prompt grounding**: chỉ dùng CONTEXT, bắt buộc trích dẫn; sau khi sinh, `extract_citations` tách `[n]` hợp lệ / không hợp lệ để CLI/API cảnh báo. Từ M6a.3, `unsupported_numbers` gắn cờ con số trong câu trả lời không có trong context hoặc câu hỏi (R11).
 
 Prompt **cố ý không** có quy tắc "nếu không biết thì nói không tìm thấy": với `qwen2.5:3b` quy tắc này làm model từ chối cả câu trả lời được (đo A/B ở M3, xem [02-milestones.md](02-milestones.md)).
 

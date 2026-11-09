@@ -105,6 +105,7 @@ class ItemResult:
     answered: bool | None = None
     answer_ok: bool | None = None  # chứa đủ answer_contains
     citation_ok: bool | None = None  # có ≥1 trích dẫn hợp lệ, không có trích dẫn sai
+    unsupported_numbers: list[str] | None = None  # con số không có trong context (R11)
     generate_ms: float | None = None
 
 
@@ -163,6 +164,7 @@ def evaluate(
             ans = orchestrator.ask(it.question, top_k)
             r.answer, r.answered = ans.text, ans.answered
             r.generate_ms = ans.timings_ms.get("generate")
+            r.unsupported_numbers = ans.unsupported_numbers if ans.answered else None
             if it.out_of_scope:
                 r.answer_ok = not ans.answered
                 r.citation_ok = None
@@ -196,6 +198,10 @@ def evaluate(
     if orchestrator is not None:
         m["answer_ok"] = _ratio(sum(1 for r in ins if r.answer_ok), len(ins))
         m["citation_ok"] = _ratio(sum(1 for r in ins if r.citation_ok), len(ins))
+        # Tỉ lệ câu trả lời (in-scope, đã trả lời) không có con số nào ngoài context.
+        answered = [r for r in ins if r.answered]
+        m["numbers_grounded"] = _ratio(sum(1 for r in answered if not r.unsupported_numbers),
+                                       len(answered))
         m["oos_not_answered"] = _ratio(sum(1 for r in oos if r.answer_ok), len(oos))
         gens = [r.generate_ms for r in results if r.generate_ms is not None]
         if gens:

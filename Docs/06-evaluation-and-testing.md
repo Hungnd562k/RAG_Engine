@@ -43,7 +43,7 @@ Nguyên tắc: ≥ 20 câu; có câu hỏi diễn đạt khác từ ngữ tài l
 - **MRR:** trung bình `1/rank` của kết quả đúng đầu tiên (0 nếu không có trong top-k).
 - **Out-of-scope precision:** tỉ lệ câu `out_of_scope` bị chặn đúng bởi `min_score`.
 - **Latency:** p50/p95 cho embed, search (và generate nếu chạy `--with-answer`).
-- **Answer check (bán tự động):** `answer_contains` có xuất hiện; mọi `[n]` hợp lệ.
+- **Answer check (bán tự động):** `answer_contains` có xuất hiện; mọi `[n]` hợp lệ; `numbers_grounded` (M6a.3): tỉ lệ câu đã trả lời không có con số nào ngoài context.
 
 ## 6. Baseline
 
@@ -91,6 +91,16 @@ Khoảng cách điểm top-1: trên `samples/`, câu trong phạm vi thấp nh�
 
 - `answer_ok`: mọi chuỗi `answer_contains` đều xuất hiện trong câu trả lời. Trước khi so khớp, dấu phân cách số được chuẩn hóa (`1.200.000` ≡ `1,200,000` ≡ `1200000`).
 - `citation_ok`: có ít nhất một `[n]` hợp lệ và không có `[n]` nào trỏ ra ngoài context.
+- `numbers_grounded` (M6a.3): trong các câu in-scope đã trả lời, tỉ lệ câu mà mọi con số đều có trong context hoặc câu hỏi. So khớp sau chuẩn hóa: `08:00` ≡ `8:00`, `1.000.000` ≡ `1,000,000` ≡ `1000000`, nhưng `1.5` ≠ `15`. Bỏ qua `[n]`, số thứ tự đầu dòng và số dính chữ (`2FA`, `bge-m3`, `qwen2.5`).
+
+#### Hậu kiểm con số (M6a.3, 2026-11-09)
+| Golden set | Mode | answer_ok | numbers_grounded | Câu bị gắn cờ |
+|-----------|------|-----------|------------------|---------------|
+| `eval/golden.yaml` | hybrid | 0.947 | **1.00** | không có (không có cảnh báo nhầm) |
+| E-Wallet | hybrid | 1.00 | **1.00** | không có |
+| E-Wallet | dense | 0.95 | 0.95 | e14 "recon.daily chạy lúc 8:00 đến 17:00": gắn cờ `17:00` |
+
+Mode dense tái hiện đúng lỗi R11 ở e14 và check bắt được. `8:00` không bị gắn cờ vì tình cờ có trong một chunk context khác. Giới hạn: check chỉ bắt con số **không có** trong context; con số có thật trong context nhưng chọn sai (q05: lấy "30 ngày" của gói khác) thì không bắt được, việc đó dành cho LLM-as-judge (M6b).
 
 ### 6.3 Tinh chỉnh tham số (M5)
 - **chunk_size** 256 / 384 / 512 / 768 (overlap tương ứng) cho hit@1 như nhau (0.949 trên hai bộ gộp). Các tài liệu đều có heading rõ, nên chunk thường dừng ở biên section trước khi chạm `chunk_size`. **Giữ 512/64.**

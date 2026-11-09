@@ -64,6 +64,10 @@ class AskResponse(BaseModel):
     sources: list[SourceOut]
     cited: list[int] = Field(description="Các [n] hợp lệ xuất hiện trong answer")
     invalid_citations: list[int] = Field(description="Các [n] không trỏ tới nguồn nào")
+    unsupported_numbers: list[str] = Field(
+        default_factory=list,
+        description="Con số trong answer không có trong context/câu hỏi: dấu hiệu bịa (R11)",
+    )
     timings_ms: dict[str, float]
 
     @classmethod
@@ -74,6 +78,7 @@ class AskResponse(BaseModel):
             sources=[SourceOut(ref=i, **ChunkOut.of(s).model_dump()) for i, s in enumerate(a.sources, 1)],
             cited=a.cited,
             invalid_citations=a.invalid_citations,
+            unsupported_numbers=a.unsupported_numbers,
             timings_ms=a.timings_ms,
         )
 

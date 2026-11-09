@@ -176,6 +176,11 @@ def ask(
         console.print(f"[red]⚠ Trích dẫn không hợp lệ: {ans.invalid_citations}[/]")
     elif ans.answered and not ans.cited:
         console.print("[yellow]⚠ Câu trả lời không có trích dẫn nào.[/]")
+    if ans.unsupported_numbers:
+        console.print(
+            f"[red]⚠ Con số không có trong context (có thể bịa): {', '.join(ans.unsupported_numbers)}[/]",
+            highlight=False,
+        )
     console.print(f"[dim]timings: {_fmt_ms(ans.timings_ms)}[/]")
 
 
@@ -221,10 +226,12 @@ def eval_cmd(
             or (not r.out_of_scope and (r.rank is None or r.rank > 1))
             or r.answer_ok is False
             or r.citation_ok is False
+            or bool(r.unsupported_numbers)
         ]
     )
     if rows:
-        t = Table(title="Chi tiết" if show_all else "Câu cần xem (trượt rank 1 / OOS lọt / answer sai)")
+        title = "Câu cần xem (trượt rank 1 / OOS lọt / answer sai / số ngoài context)"
+        t = Table(title="Chi tiết" if show_all else title)
         for col in ("id", "rank", "top1", "top1 source", "answer"):
             t.add_column(col, overflow="fold")
         for r in rows:
@@ -238,6 +245,8 @@ def eval_cmd(
                 if r.answer is None
                 else (("✓ " if r.answer_ok else "✗ ") + " ".join(r.answer.split())[:80])
             )
+            if r.unsupported_numbers:
+                ans += f" [red]⚠ số ngoài context: {', '.join(r.unsupported_numbers)}[/]"
             t.add_row(r.id, rank, f"{r.top1_score:.3f}", (r.top1_source or "").rsplit("/", 2)[-1], ans)
         console.print(t)
 
@@ -258,6 +267,7 @@ def eval_cmd(
             "oos_block",
             "answer_ok",
             "citation_ok",
+            "numbers_grounded",
             "oos_not_answered",
         )
         if x in m
