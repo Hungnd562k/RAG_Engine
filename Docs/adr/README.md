@@ -16,3 +16,4 @@ Trạng thái: `Proposed` → `Accepted` → (`Deprecated` | `Superseded by NNNN
 | [0009](0009-interfaces-cli-and-fastapi.md) | Giao diện CLI (Typer) + REST API (FastAPI) | Accepted | 2026-11-02 |
 | [0010](0010-hybrid-search-score-fusion.md) | Hybrid search gộp theo điểm (cosine + α × độ phủ IDF), không dùng RRF | Accepted | 2026-11-03 |
 | [0011](0011-reranker-tei-service.md) | Reranker `bge-reranker-v2-m3` trong container TEI riêng (GPU), mặc định tắt | Accepted | 2026-11-03 |
+| [0012](0012-mcp-search-docs-for-agents.md) | MCP server `rag mcp` (stdio) cho agent tra cứu tài liệu, chỉ đọc | Accepted (pilot) | 2026-11-09 |

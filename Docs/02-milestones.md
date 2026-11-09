@@ -189,7 +189,7 @@ Mỗi cụm là một nhánh và một PR riêng. Mọi thay đổi về retriev
 | **M6d**: Trải nghiệm hỏi đáp | Streaming `/ask` (SSE) và CLI; hội thoại nhiều lượt + viết lại câu hỏi (Q3) | ⬜ |
 | **M6e**: Vận hành | Auth, ACL (Q4), rate limit, image Docker cho app, CI | ⬜ |
 
-Cho agent (Claude) gọi `engine.search()` qua MCP `search_docs` **sau khi** retrieval ổn định và chính xác (sau M6a).
+Cho agent (Claude) gọi `engine.search()` qua MCP `search_docs` **sau khi** retrieval ổn định và chính xác (sau M6a): đang chạy pilot, xem [MCP pilot](#mcp-pilot--search_docs-cho-agent-2026-11-09).
 
 ### M6a.1 — Hybrid search (2026-11-03)
 - Cột `content_tsv` (`to_tsvector('simple', content)`, GIN). Gộp `cosine + 0.15 × độ phủ IDF`, không dùng RRF ([ADR-0010](adr/0010-hybrid-search-score-fusion.md)).
@@ -205,3 +205,9 @@ Cho agent (Claude) gọi `engine.search()` qua MCP `search_docs` **sau khi** ret
 - `generation/grounding.py`: `unsupported_numbers(answer, sources, question)` trả về các con số trong câu trả lời không có trong context (gồm source/heading) hoặc câu hỏi, so khớp sau chuẩn hóa dấu phân cách. Chỉ gắn cờ, không chặn câu trả lời.
 - `Answer.unsupported_numbers`, trường `unsupported_numbers` trong `/ask` và `rag ask --json`; `rag ask` in cảnh báo đỏ. `rag eval --with-answer` báo `numbers_grounded` và liệt kê câu bị gắn cờ.
 - **DoD:** không có cảnh báo nhầm trên `samples` và E-Wallet (numbers_grounded 1.00 ở mode hybrid). Mode dense tái hiện lỗi bịa giờ ở e14 và bị gắn cờ (`17:00`). Chi tiết ở [06 §6.2](06-evaluation-and-testing.md#62-answer---with-answer-qwen253b-instruct-gpu).
+
+### MCP pilot — `search_docs` cho agent (2026-11-09)
+- `rag mcp`: MCP server stdio, chỉ đọc, tool `search_docs` và `list_sources` ([ADR-0012](adr/0012-mcp-search-docs-for-agents.md), [04 §3](04-interfaces-cli-api.md#3-mcp-server-rag-mcp)). Kết quả có đường dẫn tuyệt đối, cờ `STALE`/`MISSING`, thông báo gợi ý grep khi không có kết quả; lỗi hạ tầng trả `ToolError` rõ ràng.
+- Golden kiểu agent: `eval/golden-agent.yaml` (+ bộ E-Wallet riêng tư).
+- Sửa kèm: `rag search/ask/eval` và API bắt `RerankError` (trước đây in traceback).
+- **DoD:** hit@5 = 1.00 trên cả hai bộ câu kiểu agent ở cấu hình mặc định; smoke test qua stdio với client MCP thật; đăng ký vào Claude Code và dùng thử trên dự án E-Wallet.

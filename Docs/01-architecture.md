@@ -282,6 +282,7 @@ Lưu ý `num_ctx`: nếu prompt vượt `RAG_LLM_NUM_CTX`, Ollama âm thầm c�
 ## 9. Điểm mở rộng (M6+)
 - **Hybrid search:** ✅ M6a: cột `content_tsv` + GIN index, gộp `cosine + α × độ phủ IDF` (không dùng RRF, xem [ADR-0010](adr/0010-hybrid-search-score-fusion.md)).
 - **Reranker:** ✅ M6a: `TEIReranker` (`bge-reranker-v2-m3` qua TEI) chạy trong `Retriever` sau bước lấy ứng viên ([ADR-0011](adr/0011-reranker-tei-service.md)).
+- **Agent (MCP):** 🟡 pilot: `rag mcp` (stdio, chỉ đọc) với `search_docs` và `list_sources` ([ADR-0012](adr/0012-mcp-search-docs-for-agents.md)).
 - **Loaders mới:** đăng ký theo đuôi file (`.pdf`, `.docx`, `.html`).
 - **Collections:** thêm cột `collection` để tách namespace.
 - **LLM khác:** adapter mới implement `LLMProvider` (Claude, OpenAI…), chọn qua config.

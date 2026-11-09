@@ -19,6 +19,7 @@ from rag_engine.config import Settings, get_settings
 from rag_engine.embedding.ollama import EmbeddingError
 from rag_engine.engine import Engine, build_engine, health_checks
 from rag_engine.llm.ollama import LLMError
+from rag_engine.rerank.tei import RerankError
 from rag_engine.schemas import (
     AskRequest,
     AskResponse,
@@ -84,6 +85,7 @@ def create_app(
 
     @app.exception_handler(EmbeddingError)
     @app.exception_handler(LLMError)
+    @app.exception_handler(RerankError)
     @app.exception_handler(psycopg.OperationalError)
     async def _infra_error(_: Request, exc: Exception) -> JSONResponse:
         return JSONResponse(status_code=503, content={"detail": str(exc)})

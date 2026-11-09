@@ -1,0 +1,62 @@
+# Câu hỏi kiểu agent (Claude) gọi `search_docs`: tiếng Anh, dạng từ khóa, ngắn.
+# Cùng sự kiện với golden.yaml; đo xem retrieval có giữ chất lượng với cách hỏi của agent không.
+- id: g01
+  question: "annual leave days"
+  expected_sources: ["samples/hr-policy.md"]
+  expected_heading: "Nghỉ phép năm"
+- id: g02
+  question: "password minimum length"
+  expected_sources: ["samples/it-security.md"]
+  expected_heading: "Mật khẩu"
+- id: g03
+  question: "hotel cap per night business trip HCMC"
+  expected_sources: ["samples/expense-policy.md"]
+  expected_heading: "Định mức công tác trong nước"
+- id: g04
+  question: "basement car parking fee"
+  expected_sources: ["samples/office-notes.txt"]
+- id: g05
+  question: "probation period length"
+  expected_sources: ["samples/onboarding.md"]
+  expected_heading: "Thời gian thử việc"
+- id: g06
+  question: "overtime pay rate on public holidays"
+  expected_sources: ["samples/hr-policy.md"]
+  expected_heading: "Thời gian làm việc"
+- id: g07
+  question: "meeting room capacity 20 people"
+  expected_sources: ["samples/office-notes.txt"]
+- id: g08
+  question: "13th month salary bonus payout"
+  expected_sources: ["samples/hr-policy.md"]
+  expected_heading: "Thưởng và tăng lương"
+- id: g09
+  question: "lost laptop incident reporting"
+  expected_sources: ["samples/it-security.md"]
+  expected_heading: "Báo cáo sự cố bảo mật"
+- id: g10
+  question: "expense reimbursement late submission deadline"
+  expected_sources: ["samples/expense-policy.md"]
+  expected_heading: "Thủ tục hoàn ứng"
+- id: g11
+  question: "new developer laptop RAM spec"
+  expected_sources: ["samples/onboarding.md"]
+  expected_heading: "Cấp phát thiết bị"
+- id: g12
+  question: "remote work internet allowance"
+  expected_sources: ["samples/remote-work-policy.md"]
+  expected_heading: "Equipment and allowance"
+- id: g13
+  question: "VPN requirement"
+  expected_sources: ["samples/it-security.md"]
+- id: g14
+  question: "StarSync Pro plan price"
+  expected_sources: ["samples/product-faq.md"]
+  expected_heading: "Pricing plans"
+# --- ngoài phạm vi ---
+- id: go1
+  question: "kubernetes ingress nginx configuration"
+  out_of_scope: true
+- id: go2
+  question: "react useEffect cleanup function"
+  out_of_scope: true

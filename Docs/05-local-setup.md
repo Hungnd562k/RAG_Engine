@@ -92,6 +92,8 @@ docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d reranker   
 curl -s localhost:8081/health && echo ok
 RAG_RERANK_ENABLED=true uv run rag health                                       # dòng "Reranker OK"
 ```
+**Thứ tự khởi động:** bật reranker **trước** khi LLM được nạp vào GPU. Nếu `qwen2.5` đang chiếm VRAM, TEI không đủ bộ nhớ và thoát với thông báo dễ gây nhầm `cannot find tensor embeddings.word_embeddings.weight`. Cách xử lý: `docker compose exec ollama ollama stop qwen2.5:3b-instruct` rồi `up -d reranker` lại.
+
 Với 4 GB VRAM, reranker chiếm ~2.4 GB nên `qwen2.5:3b` bị đẩy phần lớn sang CPU (generate chậm khoảng 2.5 lần). `search` không bị ảnh hưởng vì không dùng LLM. Xem [ADR-0011](adr/0011-reranker-tei-service.md).
 
 Phương án thay thế: cài Ollama native trên host (dùng GPU trực tiếp), tắt service `ollama` trong compose, giữ `RAG_OLLAMA_URL=http://localhost:11434`.
@@ -133,6 +135,8 @@ Danh sách đầy đủ biến cấu hình: [01-architecture.md §7](01-architec
 | `rag search` báo không có chunk đạt ngưỡng | Câu hỏi ngoài tài liệu, hoặc ngưỡng quá cao | Thử `--min-score 0` để xem score thật |
 | Lỗi build wheel khi `uv sync` | Đang dùng Python 3.14 | Kiểm tra `.python-version` = 3.12 |
 | `rag ask` embed chậm vài giây mỗi câu | Embed và LLM tranh VRAM | `RAG_EMBED_NUM_GPU=0` (xem §3) |
+| Reranker thoát với `cannot find tensor embeddings.word_embeddings.weight` | Thiếu VRAM vì LLM đã nạp vào GPU (với image `86-1.8` thì là lỗi thật của image) | `ollama stop qwen2.5:3b-instruct` rồi khởi động lại reranker (xem §3) |
+| Tool `search_docs` báo "RAG engine không sẵn sàng" | Docker chưa chạy (vd. sau khi khởi động lại máy) | `docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d` |
 | Câu trả lời thiếu `[n]` / lạc đề | Prompt vượt `num_ctx` bị cắt, hoặc model quá nhỏ | Giảm `RAG_CONTEXT_MAX_CHARS`, xem `--show-context`; thử model lớn hơn |
 | `rag serve` báo `address already in use` | Port 8000 đang bị chiếm | `uv run rag serve --port 8001` |
 | API trả 503 `Engine chưa sẵn sàng` | Server start trước khi compose lên | Bật compose; request tiếp theo engine tự khởi tạo lại |

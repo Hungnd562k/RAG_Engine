@@ -37,6 +37,7 @@ Ollama (đang phục vụ embed và LLM, [ADR-0004](0004-embedding-bge-m3-via-ol
   - `ask` chậm khoảng 2.5 lần vì LLM bị đẩy sang CPU.
   - Thêm một service và khoảng 2.2 GB model trong volume `hf`.
   - Image TEI bị pin ở 1.7 cho tới khi lỗi của 1.8 được sửa.
+  - Phải khởi động reranker trước khi LLM nạp vào GPU. Thiếu VRAM khiến TEI thoát với cùng thông báo `cannot find tensor embeddings.word_embeddings.weight` như lỗi của 1.8 (gặp lại 2026-11-09, xem [05 §3](../05-local-setup.md#3-gpu-nvidia)).
 - **Việc cần làm kèm theo:**
   - Cân nhắc dùng điểm rerank để chặn câu ngoài phạm vi (eo2 lọt ở cosine 0.516).
   - Khi có GPU lớn hơn hoặc dùng LLM ngoài (Claude), tranh chấp VRAM không còn.
