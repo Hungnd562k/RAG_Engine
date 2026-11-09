@@ -67,3 +67,4 @@ class Answer:
     invalid_citations: list[int]  # các số [n] không trỏ tới nguồn nào
     timings_ms: dict[str, float]
     answered: bool = True  # False khi short-circuit vì không có context đạt ngưỡng
+    unsupported_numbers: list[str] = field(default_factory=list)  # số không có trong context (R11)

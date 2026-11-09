@@ -92,6 +92,8 @@ def test_ask_golden_answers_and_citations(engine, monkeypatch):
     bad = [(r.id, r.answer) for r in rep.items if r.answer_ok is False or r.citation_ok is False]
     assert m["answer_ok"] >= 0.85 and m["citation_ok"] >= 0.85, (m, bad)
     assert m["oos_not_answered"] == 1.0, bad
+    flagged = [(r.id, r.unsupported_numbers) for r in rep.items if r.unsupported_numbers]
+    assert m["numbers_grounded"] >= 0.9, flagged
 
 
 def test_api_against_live_engine(engine, monkeypatch):

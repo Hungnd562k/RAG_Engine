@@ -71,6 +71,13 @@ def test_ask_returns_answer_with_citations(tmp_path, monkeypatch, fake_embedder,
     assert ans.cited == [1] and ans.invalid_citations == [5]
     assert {"embed", "search", "generate", "total"} <= set(ans.timings_ms)
     assert "12 ngày phép năm" in llm.messages[1]["content"]
+    assert ans.unsupported_numbers == []
+
+
+def test_ask_flags_number_not_in_context(tmp_path, monkeypatch, fake_embedder, memory_store):
+    orch, _ = make_orchestrator(tmp_path, monkeypatch, fake_embedder, memory_store,
+                                "Nhân viên có 15 ngày phép [1].")
+    assert orch.ask("bao nhiêu ngày phép năm", top_k=3).unsupported_numbers == ["15"]
 
 
 def test_ask_short_circuits_without_context(tmp_path, monkeypatch, fake_embedder, memory_store):

@@ -10,7 +10,7 @@ Mỗi milestone nhỏ, chạy được, có **Definition of Done (DoD)** kiểm 
 | M3 | Generation có trích dẫn (`rag ask`) | ✅ Done (2026-11-02) |
 | M4 | REST API | ✅ Done (2026-11-02) |
 | M5 | Evaluation & Tests | ✅ Done (2026-11-03) |
-| M6+ | Mở rộng (chia cụm M6a–M6e) | 🟡 M6a đang làm |
+| M6+ | Mở rộng (chia cụm M6a–M6e) | 🟡 M6a xong, tiếp M6b |
 
 ---
 
@@ -183,7 +183,7 @@ Mỗi cụm là một nhánh và một PR riêng. Mọi thay đổi về retriev
 
 | Cụm | Nội dung | Trạng thái |
 |-----|----------|-----------|
-| **M6a**: Chất lượng retrieval | 1. Hybrid search ✅<br>2. Reranker `bge-reranker-v2-m3` cho top-20 → top-5 ✅<br>3. Hậu kiểm con số trong câu trả lời phải có trong context (R11) | 🟡 Đang làm |
+| **M6a**: Chất lượng retrieval | 1. Hybrid search ✅<br>2. Reranker `bge-reranker-v2-m3` cho top-20 → top-5 ✅<br>3. Hậu kiểm con số trong câu trả lời phải có trong context (R11) ✅ | ✅ Done |
 | **M6b**: Đánh giá answer | LLM-as-judge (faithfulness/relevance) | ⬜ |
 | **M6c**: Nạp dữ liệu rộng hơn | Công cụ migration schema; loader PDF (`pymupdf`), DOCX, HTML; collections và lọc metadata; ingest bất đồng bộ | ⬜ |
 | **M6d**: Trải nghiệm hỏi đáp | Streaming `/ask` (SSE) và CLI; hội thoại nhiều lượt + viết lại câu hỏi (Q3) | ⬜ |
@@ -200,3 +200,8 @@ Cho agent (Claude) gọi `engine.search()` qua MCP `search_docs` **sau khi** ret
 - Service `reranker` (TEI, `bge-reranker-v2-m3`). GPU qua `docker-compose.gpu.yml` (image `86-1.7`). `TEIReranker` tự chia batch 32 ([ADR-0011](adr/0011-reranker-tei-service.md)).
 - `RAG_RERANK_ENABLED` (mặc định `false`), `RAG_RERANK_CANDIDATES=20`. `RAG_SEARCH_MODE=auto`: dense khi bật rerank, hybrid khi tắt. `rag health` kiểm tra reranker. `rag eval` báo `rerank_p50/p95`.
 - **DoD:** `RAG_RERANK_ENABLED=true uv run rag eval eval/golden.yaml` không kém. Bộ E-Wallet: hit@5 tăng từ 0.95 lên 1.00 (e19 vào top 5), answer_ok và citation_ok đều đạt 1.00. Rerank p50 khoảng 0.5–0.7 s trên GPU.
+
+### M6a.3 — Hậu kiểm con số (2026-11-09)
+- `generation/grounding.py`: `unsupported_numbers(answer, sources, question)` trả về các con số trong câu trả lời không có trong context (gồm source/heading) hoặc câu hỏi, so khớp sau chuẩn hóa dấu phân cách. Chỉ gắn cờ, không chặn câu trả lời.
+- `Answer.unsupported_numbers`, trường `unsupported_numbers` trong `/ask` và `rag ask --json`; `rag ask` in cảnh báo đỏ. `rag eval --with-answer` báo `numbers_grounded` và liệt kê câu bị gắn cờ.
+- **DoD:** không có cảnh báo nhầm trên `samples` và E-Wallet (numbers_grounded 1.00 ở mode hybrid). Mode dense tái hiện lỗi bịa giờ ở e14 và bị gắn cờ (`17:00`). Chi tiết ở [06 §6.2](06-evaluation-and-testing.md#62-answer---with-answer-qwen253b-instruct-gpu).

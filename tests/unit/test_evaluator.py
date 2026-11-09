@@ -115,16 +115,23 @@ def test_evaluate_with_answer_uses_orchestrator():
         def ask(self, question, top_k, source_prefix=None, min_score=None):
             if question == "o1":
                 return Answer("Không tìm thấy", [], [], [], {"total": 1.0}, answered=False)
+            if question == "q2":
+                return Answer("8:00 [1]", [ch("a.md", 0.8)], [1], [], {"generate": 100.0, "total": 1.0},
+                              unsupported_numbers=["8:00"])
             return Answer("12 ngày [1]", [ch("a.md", 0.8)], [1], [], {"generate": 100.0, "total": 110.0})
 
     items = [
         GoldenItem(id="a", question="q1", expected_sources=["a.md"], answer_contains=["12 ngày"]),
         GoldenItem(id="b", question="q1", expected_sources=["a.md"], answer_contains=["99"]),
+        GoldenItem(id="c", question="q2", expected_sources=["a.md"], answer_contains=["8:00"]),
         GoldenItem(id="o", question="o1", out_of_scope=True),
     ]
-    table = {"q1": [ch("a.md", 0.8)], "o1": [ch("x.md", 0.2)]}
-    m = evaluate(items, ScriptedRetriever(table), FakeOrch(), top_k=5).metrics
-    assert m["answer_ok"] == 0.5 and m["citation_ok"] == 1.0 and m["oos_not_answered"] == 1.0
+    table = {"q1": [ch("a.md", 0.8)], "q2": [ch("a.md", 0.8)], "o1": [ch("x.md", 0.2)]}
+    rep = evaluate(items, ScriptedRetriever(table), FakeOrch(), top_k=5)
+    m = rep.metrics
+    assert m["numbers_grounded"] == 2 / 3
+    assert rep.items[2].unsupported_numbers == ["8:00"] and rep.items[3].unsupported_numbers is None
+    assert m["answer_ok"] == 2 / 3 and m["citation_ok"] == 1.0 and m["oos_not_answered"] == 1.0
     assert m["generate_p50_ms"] == 100.0
 
 

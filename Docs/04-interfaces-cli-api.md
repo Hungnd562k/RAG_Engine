@@ -15,6 +15,8 @@ CLI và API là hai lớp mỏng gọi cùng một engine (`build_engine(setting
 | `rag serve [--host 127.0.0.1] [--port 8000] [--reload]` | Chạy FastAPI | M4 |
 | `rag eval <golden.yaml>... [--top-k N] [--with-answer] [--all] [--out FILE]` | Đánh giá retrieval (hit@k, MRR, chặn OOS, latency); `--with-answer` chấm thêm câu trả lời và trích dẫn | M5 |
 
+`rag ask` in cảnh báo đỏ khi câu trả lời có con số không xuất hiện trong context hoặc câu hỏi (dấu hiệu bịa, R11). Câu trả lời vẫn được trả về, chỉ gắn cờ.
+
 Quy ước: `--json` in kết quả cùng schema với API để dễ so sánh/scripting. Exit code ≠ 0 khi lỗi hạ tầng.
 
 ### Ví dụ output `rag search`
@@ -88,6 +90,7 @@ HTTP 200 nếu mọi thành phần bắt buộc OK (kể cả khi thiếu LLM �
                  "heading_path": ["...", "Mật khẩu"], "score": 0.737, "text": "..." } ],
   "cited": [1],                    // các [n] hợp lệ có trong answer
   "invalid_citations": [],         // các [n] không trỏ tới nguồn nào
+  "unsupported_numbers": [],       // con số trong answer không có trong context/câu hỏi (M6a.3, R11)
   "timings_ms": { "embed": 61, "search": 5, "generate": 1984, "total": 2050 }
 }
 ```

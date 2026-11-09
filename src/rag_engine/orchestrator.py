@@ -1,5 +1,6 @@
 import time
 
+from rag_engine.generation.grounding import unsupported_numbers
 from rag_engine.generation.prompt import NOT_FOUND_MESSAGE, PromptBuilder, extract_citations
 from rag_engine.llm.base import LLMProvider
 from rag_engine.models import Answer
@@ -39,4 +40,5 @@ class RagOrchestrator:
         timings["total"] = (time.perf_counter() - t0) * 1000
 
         cited, invalid = extract_citations(text, len(sources))
-        return Answer(text, sources, cited, invalid, timings, answered=True)
+        return Answer(text, sources, cited, invalid, timings, answered=True,
+                      unsupported_numbers=unsupported_numbers(text, sources, question))
